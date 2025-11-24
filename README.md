@@ -263,27 +263,5 @@ Avon is built on these principles:
 2. **Functional** — Pure expressions; no side effects
 3. **Practical** — Solves real file-generation problems
 4. **Zero runtime dependency** — Single binary; works anywhere
-
-## License
-
-Avon is dual-licensed under MIT and Apache 2.0. You can choose whichever license works best for your use case:
-
-- **MIT License** — Simple, permissive, business-friendly
-- **Apache 2.0 License** — Includes explicit patent protection
-
-See [LICENSE-MIT](./LICENSE-MIT) and [LICENSE-APACHE](./LICENSE-APACHE) for full details.
-
-## Contributing
-
-Contributions are welcome! Whether you're improving documentation, adding examples, or enhancing the language, we'd love your input.
-
-## Future Ideas
-
-- [ ] Additional examples (migrations, API specs, infra scaffolding)
-- [ ] Performance optimizations
-- [ ] Extended standard library
-- [ ] Editor support (syntax highlighting)
-
----
-
+5. 
 **Ready to generate?** Start with the [Quick Start](#quick-start) or dive into the [Full Tutorial](./tutorial/TUTORIAL.md).
