@@ -688,7 +688,10 @@ This generates `config-dev.yml` and `config-prod.yml`.
 ### Important Deploy Flags
 
 - `--root <dir>` — prepend this directory to all generated paths (recommended!)
-- `--force` — allow overwriting existing files; without this, Avon refuses to overwrite
+- `--force` — overwrite existing files without warning
+- `--append` — append to existing files instead of overwriting (useful for logs or accumulating data)
+- `--if-not-exists` — only create file if it doesn't exist (useful for initialization files)
+- **Default behavior**: If a file exists and none of the above flags are used, Avon will skip it and show a clear warning
 
 ---
 
@@ -821,7 +824,9 @@ avon examples/greet.av --deploy -name Alice -age 30 --root ./gen --force
 | `--deploy` | Generate files using result | `avon program.av --deploy ...` |
 | `-param value` | Named argument for deploy | `--deploy -name alice` |
 | `--root <dir>` | Prepend directory to all generated paths | `--root ./output` |
-| `--force` | Allow overwriting existing files | `--force` |
+| `--force` | Overwrite existing files without warning | `--force` |
+| `--append` | Append to existing files instead of overwriting | `--append` |
+| `--if-not-exists` | Only write file if it doesn't already exist | `--if-not-exists` |
 | `--git owner/repo/path` | Fetch program from GitHub raw URL | `--git user/repo/examples/gen.av` |
 
 ### Real-World Examples

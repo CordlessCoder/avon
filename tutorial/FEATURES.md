@@ -343,7 +343,10 @@ Deploy the program, generate files in the specified directory.
 - `--deploy` — Generate files from file templates
 - `-param value` — Named argument (e.g., `-name Alice`)
 - `--root <dir>` — Prepend to all generated paths
-- `--force` — Overwrite existing files
+- `--force` — Overwrite existing files without warning
+- `--append` — Append to existing files instead of overwriting
+- `--if-not-exists` — Only write file if it doesn't already exist
+- **Default**: Files are NOT overwritten; a clear warning is shown instead
 
 ### Fetch from GitHub
 ```bash

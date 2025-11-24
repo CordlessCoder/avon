@@ -148,8 +148,11 @@ cargo run -- --git owner/repo/path/to/file.av --deploy --root ./output
 - `--deploy` — Generate files
 - `-param value` — Pass named arguments
 - `--root <dir>` — Prepend directory to all file paths
-- `--force` — Allow overwriting existing files
+- `--force` — Overwrite existing files without warning
+- `--append` — Append to existing files instead of overwriting
+- `--if-not-exists` — Only write file if it doesn't exist
 - `--git owner/repo/path` — Fetch from GitHub raw URL
+- **Default**: Existing files are skipped with a clear warning
 
 ## Examples
 

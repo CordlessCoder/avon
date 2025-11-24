@@ -158,6 +158,8 @@ Commands:
 
 Options:
   --force            Overwrite files during deploy
+  --append           Append to existing files instead of overwriting
+  --if-not-exists    Only write file if it doesn't exist
   --root <dir>       Prepend <dir> to generated file paths
   --git <repo/file>  Fetch source from git raw URL
   --debug            Enable detailed debug output (lexer/parser/eval)
@@ -301,6 +303,8 @@ fn run_eval(cli_args: Vec<String>, git_opt: Option<String>, debug: bool) {
 fn run_deploy_or_eval(cli_args: Vec<String>, root_opt: Option<String>, git_opt: Option<String>, debug: bool) {
     let filepath = &cli_args[0];
     let force = cli_args.iter().any(|s| s == "--force");
+    let append = cli_args.iter().any(|s| s == "--append");
+    let if_not_exists = cli_args.iter().any(|s| s == "--if-not-exists");
     let deploy_idx = cli_args.iter().position(|s| s == "--deploy");
     let deploy_mode = deploy_idx.is_some();
     let mut deploy_pos: Vec<String> = vec![];
@@ -393,15 +397,45 @@ fn run_deploy_or_eval(cli_args: Vec<String>, root_opt: Option<String>, git_opt: 
                                             std::path::Path::new(&path).to_path_buf()
                                         };
 
-                                        if write_path.exists() && !force {
-                                            return Err(EvalError::new(format!("refusing to overwrite {} (use --force)", write_path.display()), None, None, 0));
+                                        let file_exists = write_path.exists();
+                                        
+                                        // Handle --if-not-exists: skip if file exists
+                                        if if_not_exists && file_exists {
+                                            eprintln!("Skipped {} (already exists, --if-not-exists)", write_path.display());
+                                            continue;
                                         }
+                                        
+                                        // Handle existing files without --force, --append, or --if-not-exists
+                                        if file_exists && !force && !append {
+                                            eprintln!("WARNING: File {} already exists and was NOT written.", write_path.display());
+                                            eprintln!("         Use --force to overwrite, --append to append, or --if-not-exists to skip silently.");
+                                            continue;
+                                        }
+                                        
                                         if let Some(parent) = write_path.parent() {
                                             std::fs::create_dir_all(parent).ok();
                                         }
-                                        std::fs::write(&write_path, content)
-                                            .map_err(|e| EvalError::new(format!("failed to write file: {}", e), None, None, 0))?;
-                                        println!("Wrote {}", write_path.display());
+                                        
+                                        // Handle --append: append to existing file
+                                        if append && file_exists {
+                                            use std::io::Write;
+                                            let mut file = std::fs::OpenOptions::new()
+                                                .append(true)
+                                                .open(&write_path)
+                                                .map_err(|e| EvalError::new(format!("failed to open file for append: {}", e), None, None, 0))?;
+                                            file.write_all(content.as_bytes())
+                                                .map_err(|e| EvalError::new(format!("failed to append to file: {}", e), None, None, 0))?;
+                                            println!("Appended to {}", write_path.display());
+                                        } else {
+                                            // Normal write or overwrite with --force
+                                            std::fs::write(&write_path, content)
+                                                .map_err(|e| EvalError::new(format!("failed to write file: {}", e), None, None, 0))?;
+                                            if file_exists {
+                                                println!("Overwrote {}", write_path.display());
+                                            } else {
+                                                println!("Wrote {}", write_path.display());
+                                            }
+                                        }
                                     }
                                     Ok::<(), EvalError>(())
                                 }));
