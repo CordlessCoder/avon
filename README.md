@@ -138,8 +138,11 @@ cargo run -- eval program.av
 # Deploy files with arguments
 cargo run -- program.av --deploy -name value --root ./output --force
 
-# Fetch and run from GitHub
-cargo run -- --git owner/repo/path/to/file.av --deploy --root ./output
+# Fetch and deploy from GitHub (auto-deploys)
+cargo run -- --git pyrotek45/avon/examples/site_generator.av --root ./output
+
+# Fetch and evaluate from GitHub
+cargo run -- --git-eval pyrotek45/avon/examples/test.av
 ```
 
 **Flags:**
@@ -151,7 +154,8 @@ cargo run -- --git owner/repo/path/to/file.av --deploy --root ./output
 - `--force` — Overwrite existing files without warning
 - `--append` — Append to existing files instead of overwriting
 - `--if-not-exists` — Only write file if it doesn't exist
-- `--git owner/repo/path` — Fetch from GitHub raw URL
+- `--git owner/repo/path` — Fetch and deploy from GitHub (implies --deploy)
+- `--git-eval owner/repo/path` — Fetch and evaluate from GitHub
 - **Default**: Existing files are skipped with a clear warning
 
 ## Examples

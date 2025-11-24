@@ -827,7 +827,8 @@ avon examples/greet.av --deploy -name Alice -age 30 --root ./gen --force
 | `--force` | Overwrite existing files without warning | `--force` |
 | `--append` | Append to existing files instead of overwriting | `--append` |
 | `--if-not-exists` | Only write file if it doesn't already exist | `--if-not-exists` |
-| `--git owner/repo/path` | Fetch program from GitHub raw URL | `--git user/repo/examples/gen.av` |
+| `--git owner/repo/path` | Fetch and deploy from GitHub (implies --deploy) | `--git pyrotek45/avon/examples/site.av` |
+| `--git-eval owner/repo/path` | Fetch and evaluate from GitHub | `--git-eval pyrotek45/avon/examples/test.av` |
 
 ### Real-World Examples
 
@@ -843,10 +844,16 @@ Generate config files for all environments:
 avon examples/config_gen.av --deploy --root ./configs --force
 ```
 
-Fetch and run a program from GitHub:
+Fetch and deploy a program from GitHub:
 
 ```bash
-avon --git owner/avon-scripts/generators/site.av --deploy -title "Hello" --root ./site
+avon --git pyrotek45/avon/examples/site_generator.av --root ./site
+```
+
+Fetch and evaluate a program from GitHub:
+
+```bash
+avon --git-eval pyrotek45/avon/examples/string_functions.av
 ```
 
 ---

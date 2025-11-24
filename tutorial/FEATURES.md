@@ -349,11 +349,18 @@ Deploy the program, generate files in the specified directory.
 - **Default**: Files are NOT overwritten; a clear warning is shown instead
 
 ### Fetch from GitHub
+
+**Deploy from GitHub** (automatic deployment):
 ```bash
-avon --git owner/repo/examples/gen.av --deploy --root ./out
+avon --git pyrotek45/avon/examples/site_generator.av --root ./out
 ```
 
-Fetch and run a program from GitHub's raw content CDN.
+**Evaluate from GitHub** (just run and print):
+```bash
+avon --git-eval pyrotek45/avon/examples/string_functions.av
+```
+
+Fetch and run programs directly from GitHub's raw content CDN. The `--git` flag automatically deploys, while `--git-eval` evaluates and prints the result.
 
 ---
 

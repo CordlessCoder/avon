@@ -110,6 +110,7 @@ fn print_builtin_docs() {
 pub fn run_cli(args: Vec<String>) {
     let mut root_opt: Option<String> = None;
     let mut git_opt: Option<String> = None;
+    let mut git_eval_opt: Option<String> = None;
     let mut debug = false;
     let mut cli_args: Vec<String> = Vec::new();
     let mut i = 1;
@@ -132,6 +133,16 @@ pub fn run_cli(args: Vec<String>) {
                     continue;
                 } else {
                     eprintln!("--git requires a repo/file argument");
+                    return;
+                }
+            }
+            "--git-eval" => {
+                if i + 1 < args.len() {
+                    git_eval_opt = Some(args[i + 1].clone());
+                    i += 2;
+                    continue;
+                } else {
+                    eprintln!("--git-eval requires a repo/file argument");
                     return;
                 }
             }
@@ -161,10 +172,17 @@ Options:
   --append           Append to existing files instead of overwriting
   --if-not-exists    Only write file if it doesn't exist
   --root <dir>       Prepend <dir> to generated file paths
-  --git <repo/file>  Fetch source from git raw URL
+  --git <repo/file>  Fetch and deploy from git raw URL (implies --deploy)
+  --git-eval <repo/file>  Fetch and evaluate from git raw URL
   --debug            Enable detailed debug output (lexer/parser/eval)
   --doc              Show all builtin functions (with Haskell-style types)
   -h, --help         Show this brief help
+
+Examples:
+  avon eval myfile.av
+  avon myfile.av --deploy --root ./output
+  avon --git pyrotek45/avon/examples/site_generator.av --root ./site
+  avon --git-eval pyrotek45/avon/examples/test.av
 "#;
 
         if cli_args[0] == "--help" || cli_args[0] == "-h" {
@@ -178,11 +196,31 @@ Options:
         }
 
         if cli_args[0] == "eval" {
-            run_eval(cli_args, git_opt, debug);
+            run_eval(cli_args, git_eval_opt.or(git_opt.clone()), debug);
+            return;
+        }
+
+        // If --git is present, ensure we're in deploy mode
+        if git_opt.is_some() && !cli_args.contains(&"--deploy".to_string()) {
+            let mut deploy_args = vec!["dummy.av".to_string(), "--deploy".to_string()];
+            deploy_args.extend(cli_args);
+            run_deploy_or_eval(deploy_args, root_opt, git_opt, debug);
             return;
         }
 
         run_deploy_or_eval(cli_args, root_opt, git_opt, debug);
+        return;
+    }
+
+    // Handle --git-eval without additional commands
+    if git_eval_opt.is_some() {
+        run_eval(vec!["eval".to_string(), "dummy.av".to_string()], git_eval_opt, debug);
+        return;
+    }
+
+    // Handle --git without additional commands (defaults to deploy)
+    if git_opt.is_some() {
+        run_deploy_or_eval(vec!["dummy.av".to_string(), "--deploy".to_string()], root_opt, git_opt, debug);
         return;
     }
 
