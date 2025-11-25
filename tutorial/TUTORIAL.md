@@ -1078,18 +1078,18 @@ You referenced a variable that doesn't exist. Check spelling and make sure it's 
 
 2. **Print intermediate values:** Use `eval` to see what expressions evaluate to:
    ```bash
-   avon -c 'let x = [1,2,3] in map (\n n * 2) x' eval
+   avon --eval-input 'let x = [1,2,3] in map (\n n * 2) x' 
    ```
 
 3. **Check file generation:** Before using `--deploy`, check if files will be generated where you expect:
    ```bash
-   avon program.av eval  # Shows what will be generated
+   avon program.av  # Shows what will be generated
    ```
 
 4. **Isolate escape hatch issues:** Test brace escaping independently:
    ```bash
-   avon -c '@/t.txt {"{{ {{{{ }}}}"}' eval
-   # Outputs: { {{
+   avon --eval-input '@/t.txt {"{{ {{{{ }}}}"}' 
+   # Outputs: { {{{ }}}
    ```
 
 ---

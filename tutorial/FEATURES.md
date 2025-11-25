@@ -788,7 +788,7 @@ Instead of deeply nested expressions, use `let` to name intermediate values.
 ### 2. Debug with Eval
 Always test with `eval` before deploying:
 ```bash
-avon program.av eval        # Check output first
+avon program.av             # Check output first
 avon program.av --deploy    # Then generate files
 ```
 

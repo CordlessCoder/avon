@@ -194,19 +194,6 @@ math.double 21  # Returns 42
 
 **Any Text Format** — YAML, JSON, TOML, HCL, shell scripts, code, configs, docs
 
-**Excellent Errors** — Clickable file:line:column, shows variable definitions, helpful hints
-```
-Error: Type mismatch in function call
-  ┌─ config.av:15:20
-  │
-12 │ let port = 8080 in
-  │     ---- defined here as Number
-15 │ let url = concat port "/api"
-  │                 ^^^^ expected String, got Number
-  │
-  = hint: use `string port` to convert to string
-```
-
 Run `avon --doc` for complete function reference.
 
 ## Commands

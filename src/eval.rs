@@ -908,7 +908,25 @@ pub fn eval(
                         find_line_for_symbol(&args[1], source),
                     )
                 })?;
-
+                // should be strings
+                // check types
+                if let Value::String(_) = arg1 {
+                } else {
+                    return Err(EvalError::type_mismatch(
+                        "string",
+                        arg1.to_string(source),
+                        find_line_for_symbol("", source),
+                    ));
+                }
+                if let Value::String(_) = arg2 {
+                } else {
+                    return Err(EvalError::type_mismatch(
+                        "string",
+                        arg2.to_string(source),
+                        find_line_for_symbol("", source),
+                    ));
+                }
+                
                 match (arg1, arg2) {
                     (Value::String(mut lhs), Value::String(rhs)) => {
                         lhs.push_str(rhs.as_str());
