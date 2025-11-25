@@ -602,11 +602,10 @@ You can embed any expression in a template:
 ```avon
 let x = 10 in
 let y = 20 in
-let items = ["apple", "banana", "cherry"] in
-{"
-Sum: {x + y}
-Max: {if x > y then x else y}
-Items: {join items ", "}
+let items = ["apple", "banana", "cherry"] in {"
+    Sum: {x + y}
+    Max: {if x > y then x else y}
+    Items: {join items ", "}
 "}
 ```
 
