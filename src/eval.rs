@@ -298,6 +298,77 @@ pub fn initial_builtins() -> HashMap<String, Value> {
         "os".to_string(),
         Value::String(std::env::consts::OS.to_string()),
     );
+
+    // Type checking and introspection
+    m.insert(
+        "typeof".to_string(),
+        Value::Builtin("typeof".to_string(), Vec::new()),
+    );
+    m.insert(
+        "is_string".to_string(),
+        Value::Builtin("is_string".to_string(), Vec::new()),
+    );
+    m.insert(
+        "is_number".to_string(),
+        Value::Builtin("is_number".to_string(), Vec::new()),
+    );
+    m.insert(
+        "is_int".to_string(),
+        Value::Builtin("is_int".to_string(), Vec::new()),
+    );
+    m.insert(
+        "is_float".to_string(),
+        Value::Builtin("is_float".to_string(), Vec::new()),
+    );
+    m.insert(
+        "is_list".to_string(),
+        Value::Builtin("is_list".to_string(), Vec::new()),
+    );
+    m.insert(
+        "is_bool".to_string(),
+        Value::Builtin("is_bool".to_string(), Vec::new()),
+    );
+    m.insert(
+        "is_function".to_string(),
+        Value::Builtin("is_function".to_string(), Vec::new()),
+    );
+
+    // Type assertions
+    m.insert(
+        "assert_string".to_string(),
+        Value::Builtin("assert_string".to_string(), Vec::new()),
+    );
+    m.insert(
+        "assert_number".to_string(),
+        Value::Builtin("assert_number".to_string(), Vec::new()),
+    );
+    m.insert(
+        "assert_int".to_string(),
+        Value::Builtin("assert_int".to_string(), Vec::new()),
+    );
+    m.insert(
+        "assert_list".to_string(),
+        Value::Builtin("assert_list".to_string(), Vec::new()),
+    );
+    m.insert(
+        "assert_bool".to_string(),
+        Value::Builtin("assert_bool".to_string(), Vec::new()),
+    );
+
+    // Debugging and error handling
+    m.insert(
+        "error".to_string(),
+        Value::Builtin("error".to_string(), Vec::new()),
+    );
+    m.insert(
+        "trace".to_string(),
+        Value::Builtin("trace".to_string(), Vec::new()),
+    );
+    m.insert(
+        "debug".to_string(),
+        Value::Builtin("debug".to_string(), Vec::new()),
+    );
+
     m
 }
 
@@ -405,11 +476,22 @@ pub fn render_chunks_to_string(
 pub fn dedent(s: &str) -> String {
     let mut lines: Vec<&str> = s.lines().collect();
 
-    while !lines.is_empty() && lines.first().unwrap().trim().is_empty() {
-        lines.remove(0);
+    // Remove leading empty lines
+    while let Some(first) = lines.first() {
+        if first.trim().is_empty() {
+            lines.remove(0);
+        } else {
+            break;
+        }
     }
-    while !lines.is_empty() && lines.last().unwrap().trim().is_empty() {
-        lines.pop();
+    
+    // Remove trailing empty lines
+    while let Some(last) = lines.last() {
+        if last.trim().is_empty() {
+            lines.pop();
+        } else {
+            break;
+        }
     }
 
     let min_indent = lines
@@ -440,6 +522,81 @@ pub fn find_line_for_symbol(sym: &str, source: &str) -> usize {
     0
 }
 
+pub fn find_variable_definition(var_name: &str, source: &str) -> Option<(usize, usize, String)> {
+    // Look for "let varname =" pattern
+    let pattern = format!("let {} =", var_name);
+    
+    for (line_num, line) in source.lines().enumerate() {
+        if let Some(col) = line.find(&pattern) {
+            // Make sure it's actually a let binding, not inside a string
+            let before = &line[..col];
+            if !before.contains('"') || before.matches('"').count() % 2 == 0 {
+                return Some((line_num + 1, col + 5, line.to_string())); // +5 to point at the variable name after "let "
+            }
+        }
+    }
+    
+    None
+}
+
+pub fn extract_variable_name(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Ident(name) => Some(name.clone()),
+        _ => None,
+    }
+}
+
+pub fn find_operator_line(op: &str, source: &str) -> usize {
+    find_operator_location(op, source).0
+}
+
+pub fn find_operator_location(op: &str, source: &str) -> (usize, usize) {
+    // Find the operator in context (not in strings or comments)
+    for (line_num, line) in source.lines().enumerate() {
+        // Skip comment lines
+        if line.trim().starts_with('#') {
+            continue;
+        }
+        
+        // Look for the operator outside of strings
+        let mut in_string = false;
+        let mut escape_next = false;
+        let chars: Vec<char> = line.chars().collect();
+        
+        for i in 0..chars.len() {
+            if escape_next {
+                escape_next = false;
+                continue;
+            }
+            
+            if chars[i] == '\\' {
+                escape_next = true;
+                continue;
+            }
+            
+            if chars[i] == '"' {
+                in_string = !in_string;
+                continue;
+            }
+            
+            if !in_string && i + op.len() <= chars.len() {
+                let slice: String = chars[i..std::cmp::min(i + op.len(), chars.len())].iter().collect();
+                if slice == op {
+                    // Make sure it's not part of another operator like ==, >=, etc.
+                    let before_ok = i == 0 || !chars[i-1].is_alphanumeric();
+                    let after_ok = i + op.len() >= chars.len() || !chars[i + op.len()].is_alphanumeric();
+                    if before_ok && after_ok {
+                        return (line_num + 1, i + 1); // Return 1-indexed line and column
+                    }
+                }
+            }
+        }
+    }
+    
+    // Fallback: just find it anywhere
+    (find_line_for_symbol(op, source), 0)
+}
+
 pub fn eval(
     expr: Expr,
     symbols: &mut HashMap<String, Value>,
@@ -464,11 +621,57 @@ pub fn eval(
                         la.extend(lb.into_iter());
                         Ok(Value::List(la))
                     }
-                    (a, b) => Err(EvalError::type_mismatch(
-                        "number/string/list",
-                        format!("{}, {}", a.to_string(source), b.to_string(source)),
-                        find_line_for_symbol("", source),
-                    )),
+                    (a, b) => {
+                        let l_val = a.to_string(source);
+                        let r_val = b.to_string(source);
+                        let l_type = match a {
+                            Value::Number(_) => "Number",
+                            Value::String(_) => "String",
+                            Value::List(_) => "List",
+                            Value::Bool(_) => "Bool",
+                            Value::Function { .. } => "Function",
+                            _ => "unknown type",
+                        };
+                        let r_type = match b {
+                            Value::Number(_) => "Number",
+                            Value::String(_) => "String",
+                            Value::List(_) => "List",
+                            Value::Bool(_) => "Bool",
+                            Value::Function { .. } => "Function",
+                            _ => "unknown type",
+                        };
+                        
+                        // Try to extract variable names and find their definitions
+                        let l_var = extract_variable_name(&lhs);
+                        let r_var = extract_variable_name(&rhs);
+                        
+                        let mut hint = format!("The + operator requires both sides to be the same type. You're trying to add a {} and a {}", l_type, r_type);
+                        
+                        // Add information about where variables were defined with source lines
+                        if let Some(l_name) = &l_var {
+                            if let Some((def_line, def_col, source_line)) = find_variable_definition(l_name, source) {
+                                hint.push_str(&format!("\n       |\n       | Note: '{}' ({}) was defined at line {}:{}:", l_name, l_type, def_line, def_col));
+                                hint.push_str(&format!("\n  {:>4} | {}", def_line, source_line.trim()));
+                            }
+                        }
+                        if let Some(r_name) = &r_var {
+                            if let Some((def_line, def_col, source_line)) = find_variable_definition(r_name, source) {
+                                hint.push_str(&format!("\n       |\n       | Note: '{}' ({}) was defined at line {}:{}:", r_name, r_type, def_line, def_col));
+                                hint.push_str(&format!("\n  {:>4} | {}", def_line, source_line.trim()));
+                            }
+                        }
+                        
+                        // Try to find the + operator in source and its column
+                        let (line, col) = find_operator_location("+", source);
+                        Err(EvalError::new(
+                            format!("cannot use + operator with different types"),
+                            Some(format!("same types (Number + Number, String + String, or List + List)")),
+                            Some(format!("{} ({}) + {} ({})", l_type, l_val, r_type, r_val)),
+                            line,
+                        )
+                        .with_column(col)
+                        .with_hint(hint))
+                    }
                 },
                 Token::Mul | Token::Div | Token::Sub => {
                     let lnumber = match l_eval {
@@ -764,6 +967,25 @@ pub fn apply_function(func: &Value, arg: Value, source: &str) -> Result<Value, E
                 "keys" => 1,
                 "values" => 1,
                 "has_key" => 2,
+                // Type checking
+                "typeof" => 1,
+                "is_string" => 1,
+                "is_number" => 1,
+                "is_int" => 1,
+                "is_float" => 1,
+                "is_list" => 1,
+                "is_bool" => 1,
+                "is_function" => 1,
+                // Type assertions
+                "assert_string" => 1,
+                "assert_number" => 1,
+                "assert_int" => 1,
+                "assert_list" => 1,
+                "assert_bool" => 1,
+                // Debugging
+                "error" => 1,
+                "trace" => 2,
+                "debug" => 1,
                 _ => 1,
             };
 
@@ -2053,6 +2275,163 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
                 ))
             }
         }
+
+        // Type introspection
+        "typeof" => {
+            // typeof :: a -> String
+            // Returns the type name of a value
+            let val = &args[0];
+            let type_name = match val {
+                Value::String(_) => "String",
+                Value::Number(_) => "Number",
+                Value::Bool(_) => "Bool",
+                Value::List(_) => "List",
+                Value::Function { .. } => "Function",
+                Value::Builtin(_, _) => "Builtin",
+                Value::FileTemplate { .. } => "FileTemplate",
+                Value::Template(_, _) => "Template",
+                Value::Path(_, _) => "Path",
+                Value::None => "None",
+            };
+            Ok(Value::String(type_name.to_string()))
+        }
+
+        // Type predicates
+        "is_string" => {
+            // is_string :: a -> Bool
+            Ok(Value::Bool(matches!(args[0], Value::String(_))))
+        }
+        "is_number" => {
+            // is_number :: a -> Bool
+            Ok(Value::Bool(matches!(args[0], Value::Number(_))))
+        }
+        "is_int" => {
+            // is_int :: a -> Bool
+            Ok(Value::Bool(matches!(args[0], Value::Number(Number::Int(_)))))
+        }
+        "is_float" => {
+            // is_float :: a -> Bool
+            Ok(Value::Bool(matches!(args[0], Value::Number(Number::Float(_)))))
+        }
+        "is_list" => {
+            // is_list :: a -> Bool
+            Ok(Value::Bool(matches!(args[0], Value::List(_))))
+        }
+        "is_bool" => {
+            // is_bool :: a -> Bool
+            Ok(Value::Bool(matches!(args[0], Value::Bool(_))))
+        }
+        "is_function" => {
+            // is_function :: a -> Bool
+            Ok(Value::Bool(matches!(args[0], Value::Function { .. } | Value::Builtin(_, _))))
+        }
+
+        // Type assertions
+        "assert_string" => {
+            // assert_string :: a -> String
+            // Returns value if it's a String, throws error otherwise
+            match &args[0] {
+                Value::String(_) => Ok(args[0].clone()),
+                other => Err(EvalError::type_mismatch(
+                    "String",
+                    format!("{:?}", other),
+                    find_line_for_symbol("", source),
+                )),
+            }
+        }
+        "assert_number" => {
+            // assert_number :: a -> Number
+            // Returns value if it's a Number, throws error otherwise
+            match &args[0] {
+                Value::Number(_) => Ok(args[0].clone()),
+                other => Err(EvalError::type_mismatch(
+                    "Number",
+                    format!("{:?}", other),
+                    find_line_for_symbol("", source),
+                )),
+            }
+        }
+        "assert_int" => {
+            // assert_int :: a -> Int
+            // Returns value if it's an Int, throws error otherwise
+            match &args[0] {
+                Value::Number(Number::Int(_)) => Ok(args[0].clone()),
+                other => Err(EvalError::type_mismatch(
+                    "Int",
+                    format!("{:?}", other),
+                    find_line_for_symbol("", source),
+                )),
+            }
+        }
+        "assert_list" => {
+            // assert_list :: a -> List
+            // Returns value if it's a List, throws error otherwise
+            match &args[0] {
+                Value::List(_) => Ok(args[0].clone()),
+                other => Err(EvalError::type_mismatch(
+                    "List",
+                    format!("{:?}", other),
+                    find_line_for_symbol("", source),
+                )),
+            }
+        }
+        "assert_bool" => {
+            // assert_bool :: a -> Bool
+            // Returns value if it's a Bool, throws error otherwise
+            match &args[0] {
+                Value::Bool(_) => Ok(args[0].clone()),
+                other => Err(EvalError::type_mismatch(
+                    "Bool",
+                    format!("{:?}", other),
+                    find_line_for_symbol("", source),
+                )),
+            }
+        }
+
+        // Debugging and error handling
+        "error" => {
+            // error :: String -> a
+            // Throws an error with the given message
+            match &args[0] {
+                Value::String(msg) => Err(EvalError::new(
+                    msg.clone(),
+                    None,
+                    None,
+                    find_line_for_symbol("", source),
+                )),
+                other => Err(EvalError::new(
+                    format!("error expects String message, got: {}", other.to_string(source)),
+                    None,
+                    None,
+                    find_line_for_symbol("", source),
+                )),
+            }
+        }
+        "trace" => {
+            // trace :: String -> a -> a
+            // Prints label and value to stderr, returns the value
+            let label = &args[0];
+            let val = &args[1];
+            match label {
+                Value::String(s) => {
+                    eprintln!("[TRACE] {}: {}", s, val.to_string(source));
+                    Ok(val.clone())
+                }
+                _ => Err(EvalError::type_mismatch(
+                    "String (for trace label)",
+                    format!("{:?}", label),
+                    find_line_for_symbol("", source),
+                )),
+            }
+        }
+        "debug" => {
+            // debug :: a -> a
+            // Pretty-prints the value structure to stderr, returns the value
+            let val = &args[0];
+            eprintln!("[DEBUG] {:?}", val);
+            Ok(val.clone())
+        }
+
         other => Err(EvalError::new(
             format!("unimplemented builtin {}", other),
             None,

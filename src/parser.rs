@@ -1,6 +1,8 @@
-use crate::common::{Ast, Expr, Token};
+use crate::common::{Ast, EvalError, Expr, Token};
 use std::iter::Peekable;
 use std::slice::Iter;
+
+type ParseResult<T> = Result<T, EvalError>;
 
 pub fn parse_atom(stream: &mut Peekable<Iter<Token>>) -> Expr {
     match stream.next() {
@@ -29,10 +31,16 @@ pub fn parse_atom(stream: &mut Peekable<Iter<Token>>) -> Expr {
                                     stream.next();
                                     break;
                                 }
-                                a => panic!("expected ',' or ']' in list, got {a:?}"),
+                                a => {
+                                    eprintln!("Parse error: expected ',' or ']' in list, got {:?}", a);
+                                    return Expr::None;
+                                }
                             }
                         }
-                        _ => panic!("unexpected EOF in list literal"),
+                        None => {
+                            eprintln!("Parse error: unexpected end of input in list literal");
+                            return Expr::None;
+                        }
                     }
                 }
                 Expr::List(items)
@@ -58,7 +66,8 @@ pub fn parse_factor(stream: &mut Peekable<Iter<Token>>) -> Expr {
         if !peek.is_factor_op() {
             break;
         }
-        let op = stream.next().unwrap().clone();
+        // Safe: we just peeked and confirmed there's a token
+        let op = stream.next().expect("token exists after peek").clone();
         let rhs = parse_atom(stream);
         lhs = Expr::Binary {
             lhs: Box::new(lhs),
@@ -77,7 +86,8 @@ pub fn parse_term(stream: &mut Peekable<Iter<Token>>) -> Expr {
         if !peek.is_term_op() {
             break;
         }
-        let op = stream.next().unwrap().clone();
+        // Safe: we just peeked and confirmed there's a token
+        let op = stream.next().expect("token exists after peek").clone();
         let rhs = parse_factor(stream);
         lhs = Expr::Binary {
             lhs: Box::new(lhs),
@@ -100,7 +110,8 @@ pub fn parse_cmp(stream: &mut Peekable<Iter<Token>>) -> Expr {
             | Some(Token::Less)
             | Some(Token::GreaterEqual)
             | Some(Token::LessEqual) => {
-                let op = stream.next().unwrap().clone();
+                // Safe: we just peeked and confirmed there's a token
+                let op = stream.next().expect("token exists after peek").clone();
                 let rhs = parse_term(stream);
                 lhs = Expr::Binary {
                     lhs: Box::new(lhs),
@@ -116,40 +127,78 @@ pub fn parse_cmp(stream: &mut Peekable<Iter<Token>>) -> Expr {
     lhs
 }
 
-fn eat(stream: &mut Peekable<Iter<Token>>, token: Token) {
+fn eat(stream: &mut Peekable<Iter<Token>>, token: Token) -> ParseResult<()> {
     let next = stream.next();
-    if next.is_some_and(|t| t != &token) {
-        panic!("failed to eat a {token:?}, got {next:?}")
+    if let Some(t) = next {
+        if t != &token {
+            return Err(EvalError::new(
+                format!("parse error: expected {:?}, found {:?}", token, t),
+                Some(format!("{:?}", token)),
+                Some(format!("{:?}", t)),
+                1,
+            ));
+        }
+    } else {
+        return Err(EvalError::new(
+            format!("parse error: expected {:?}, found end of input", token),
+            Some(format!("{:?}", token)),
+            Some("end of input".to_string()),
+            1,
+        ));
     }
+    Ok(())
 }
 
 pub fn parse_expr(stream: &mut Peekable<Iter<Token>>) -> Expr {
+    match try_parse_expr(stream) {
+        Ok(expr) => expr,
+        Err(e) => {
+            eprintln!("Parse error: {}", e.message);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn try_parse_expr(stream: &mut Peekable<Iter<Token>>) -> ParseResult<Expr> {
     match stream.peek() {
         Some(token) => match token {
             Token::Identifier(ident) if ident == "let" => {
-                eat(stream, Token::Identifier(String::from("let")));
+                eat(stream, Token::Identifier(String::from("let")))?;
                 let ident = stream
                     .next()
                     .and_then(|t| match t {
                         Token::Identifier(ident) => Some(ident.clone()),
-                        a => panic!("expected an ident, got {a:?}"),
+                        a => {
+                            eprintln!("Parse error: expected identifier after 'let', got {:?}", a);
+                            None
+                        }
                     })
-                    .unwrap();
-                eat(stream, Token::Equal);
-                let value = Box::new(parse_expr(stream));
-                eat(stream, Token::Identifier(String::from("in")));
-                let expr = Box::new(parse_expr(stream));
-                return Expr::Let { ident, value, expr };
+                    .ok_or_else(|| EvalError::new(
+                        "expected identifier after 'let'",
+                        Some("identifier".to_string()),
+                        Some("something else".to_string()),
+                        1,
+                    ))?;
+                eat(stream, Token::Equal)?;
+                let value = Box::new(try_parse_expr(stream)?);
+                eat(stream, Token::Identifier(String::from("in")))?;
+                let expr = Box::new(try_parse_expr(stream)?);
+                return Ok(Expr::Let { ident, value, expr });
             }
             Token::BackSlash => {
-                eat(stream, Token::BackSlash);
+                eat(stream, Token::BackSlash)?;
                 let ident = stream
                     .next()
                     .and_then(|t| match t {
                         Token::Identifier(ident) => Some(ident.clone()),
                         _ => None,
                     })
-                    .expect("expected an ident");
+                    .ok_or_else(|| EvalError::new(
+                        "expected identifier after '\\'",
+                        Some("identifier".to_string()),
+                        None,
+                        1,
+                    ))?;
 
                 let mut default: Option<Expr> = None;
                 if let Some(Token::Question) = stream.peek() {
@@ -158,13 +207,13 @@ pub fn parse_expr(stream: &mut Peekable<Iter<Token>>) -> Expr {
                     default = Some(def_expr);
                 }
 
-                let expr = parse_expr(stream);
+                let expr = try_parse_expr(stream)?;
 
-                return Expr::Function {
+                return Ok(Expr::Function {
                     ident,
                     default: default.map(|d| Box::new(d)),
                     expr: Box::new(expr),
-                };
+                });
             }
             Token::Path(chunks) => {
                 let path_chunks = chunks.clone();
@@ -172,41 +221,46 @@ pub fn parse_expr(stream: &mut Peekable<Iter<Token>>) -> Expr {
                 match stream.peek() {
                     Some(Token::Template(template_chunks)) => {
                         stream.next();
-                        return Expr::FileTemplate {
+                        return Ok(Expr::FileTemplate {
                             path: path_chunks.clone(),
                             template: template_chunks.clone(),
-                        };
+                        });
                     }
                     Some(Token::At) => {
                         stream.next();
                         match stream.next() {
                             Some(Token::Template(template_chunks)) => {
-                                return Expr::FileTemplate {
+                                return Ok(Expr::FileTemplate {
                                     path: path_chunks.clone(),
                                     template: template_chunks.clone(),
-                                };
+                                });
                             }
-                            a => panic!("expected a template after @, got {a:?}"),
+                            a => return Err(EvalError::new(
+                                format!("expected template after '@', got {:?}", a),
+                                Some("template string".to_string()),
+                                Some(format!("{:?}", a)),
+                                1,
+                            )),
                         }
                     }
                     _ => {
-                        return Expr::Path(path_chunks);
+                        return Ok(Expr::Path(path_chunks));
                     }
                 }
             }
             Token::Identifier(ident) if ident == "if" => {
-                eat(stream, Token::Identifier(String::from("if")));
-                let cond = Box::new(parse_expr(stream));
-                eat(stream, Token::Identifier(String::from("then")));
-                let t = Box::new(parse_expr(stream));
-                eat(stream, Token::Identifier(String::from("else")));
-                let f = Box::new(parse_expr(stream));
-                return Expr::If { cond, t, f };
+                eat(stream, Token::Identifier(String::from("if")))?;
+                let cond = Box::new(try_parse_expr(stream)?);
+                eat(stream, Token::Identifier(String::from("then")))?;
+                let t = Box::new(try_parse_expr(stream)?);
+                eat(stream, Token::Identifier(String::from("else")))?;
+                let f = Box::new(try_parse_expr(stream)?);
+                return Ok(Expr::If { cond, t, f });
             }
             Token::Identifier(ident) if ident == "true" || ident == "false" => {
                 let value = ident == "true";
                 stream.next();
-                return Expr::Bool(value);
+                return Ok(Expr::Bool(value));
             }
             _ => {}
         },
@@ -247,7 +301,7 @@ pub fn parse_expr(stream: &mut Peekable<Iter<Token>>) -> Expr {
         }
     }
 
-    lhs
+    Ok(lhs)
 }
 
 pub fn parse(input: Vec<Token>) -> Ast {

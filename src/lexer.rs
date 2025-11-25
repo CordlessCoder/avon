@@ -12,7 +12,8 @@ pub fn identifier(next: char, stream: &mut Peekable<Chars<'_>>) -> Token {
         if peek.is_whitespace() || (!peek.is_alphanumeric() && *peek != '_') {
             break;
         }
-        ident.push(stream.next().unwrap());
+        // Safe: we just peeked and confirmed there's a character
+        ident.push(stream.next().expect("character exists after peek"));
     }
     Token::Identifier(ident)
 }
@@ -286,7 +287,8 @@ pub fn number(next: char, stream: &mut Peekable<Chars<'_>>) -> Result<Token, Eva
         if peek.is_whitespace() || !peek.is_numeric() {
             break;
         }
-        number.push(stream.next().unwrap());
+        // Safe: we just peeked and confirmed there's a character
+        number.push(stream.next().expect("character exists after peek"));
     }
 
     let Some(peek) = stream.peek() else {
@@ -295,7 +297,8 @@ pub fn number(next: char, stream: &mut Peekable<Chars<'_>>) -> Result<Token, Eva
     };
 
     if peek == &'.' {
-        number.push(stream.next().unwrap());
+        // Safe: we just checked peek == '.'
+        number.push(stream.next().expect("'.' character exists after peek"));
         loop {
             let Some(peek) = stream.peek().clone() else {
                 break;
@@ -303,7 +306,8 @@ pub fn number(next: char, stream: &mut Peekable<Chars<'_>>) -> Result<Token, Eva
             if peek.is_whitespace() || !peek.is_numeric() {
                 break;
             }
-            number.push(stream.next().unwrap());
+            // Safe: we just peeked and confirmed there's a character
+            number.push(stream.next().expect("character exists after peek"));
         }
         let number: f64 = number.parse().unwrap_or_default();
         return Ok(Token::Float(number));

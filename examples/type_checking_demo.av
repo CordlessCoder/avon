@@ -1,0 +1,106 @@
+# Type Checking and Debugging Demo
+# Demonstrates all the new type introspection, assertion, and debugging functions
+
+let port = assert_number 8080 in
+let host = assert_string "localhost" in
+let services = assert_list ["api", "web", "db"] in
+let enabled = assert_bool (1 == 1) in
+
+let validate_port = \p 
+  let validated = assert_number p in
+  if validated > 0 then validated
+  else error "Port must be positive"
+in
+
+let validate_env = \env
+  let e = assert_string env in
+  if e == "dev" then e
+  else if e == "staging" then e
+  else if e == "prod" then e
+  else error "Environment must be dev, staging, or prod"
+in
+
+let config_port = validate_port 8080 in
+let config_env = validate_env "prod" in
+
+let compute = \x
+  let doubled = trace "doubled" (x * 2) in
+  let added = trace "added 10" (doubled + 10) in
+  added
+in
+
+let complex_data = [
+  ["service", "api"],
+  ["port", "8080"],
+  ["env", "prod"],
+  ["replicas", "3"]
+] in
+
+let inspected = debug complex_data in
+
+let make_service_config = \name \port_num \env
+  let validated_name = trace "validating name" (assert_string name) in
+  let validated_port = trace "validating port" (assert_number port_num) in
+  let validated_env = trace "validating env" (assert_string env) in
+  let config = [
+    ["name", validated_name],
+    ["port", to_string validated_port],
+    ["environment", validated_env]
+  ] in
+  debug config
+in
+
+let service = make_service_config "api" 8080 "production" in {"
+    === typeof Function ===
+    typeof on string:     {typeof "hello"}
+    typeof on number:     {typeof 42}
+    typeof on float:      {typeof 3.14}
+    typeof on list:       {typeof [1, 2, 3]}
+    typeof on bool:       {typeof (1 == 1)}
+    typeof on function:   {typeof (\x x + 1)}
+
+    === Type Predicates ===
+    is_string "hello":    {if is_string "hello" then "yes" else "no"}
+    is_string 42:         {if is_string 42 then "yes" else "no"}
+    is_number 42:         {if is_number 42 then "yes" else "no"}
+    is_number "42":       {if is_number "42" then "yes" else "no"}
+    is_int 42:            {if is_int 42 then "yes" else "no"}
+    is_int 3.14:          {if is_int 3.14 then "yes" else "no"}
+    is_float 3.14:        {if is_float 3.14 then "yes" else "no"}
+    is_float 42:          {if is_float 42 then "yes" else "no"}
+    is_list [1,2,3]:      {if is_list [1, 2, 3] then "yes" else "no"}
+    is_list "not a list": {if is_list "not a list" then "yes" else "no"}
+    is_bool (1==1):       {if is_bool (1 == 1) then "yes" else "no"}
+    is_bool 1:            {if is_bool 1 then "yes" else "no"}
+    is_function (\x x):   {if is_function (\x x) then "yes" else "no"}
+    is_function 42:       {if is_function 42 then "yes" else "no"}
+
+    === Type Assertions (Success Cases) ===
+    Validated port (Number):   {port}
+    Validated host (String):   {host}
+    Validated services (List): {format_list services ", "}
+    Validated enabled (Bool):  {if enabled then "yes" else "no"}
+
+    === Practical Example: Config Validation ===
+    Validated config:
+    port: {config_port}
+    env:  {config_env}
+
+    === trace Function ===
+    Trace prints to stderr and returns the value for continued processing.
+    Result of compute 5: {compute 5}
+    (Check stderr for trace output above)
+
+    === debug Function ===
+    Debug pretty-prints the internal structure to stderr.
+    After debug inspection, value still works:
+    Service: {get inspected "service"}
+    Port: {get inspected "port"}
+    (Check stderr for debug output above)
+
+    === Complete Validation Example ===
+    Created service configuration:
+    Name: {get service "name"}
+    Port: {get service "port"}
+    Env:  {get service "environment"}
+"}

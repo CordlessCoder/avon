@@ -128,6 +128,38 @@ fn print_builtin_docs() {
     println!("  import       :: String|Path -> Value");
     println!();
 
+    // Type Checking & Introspection
+    println!("Type Checking & Introspection:");
+    println!("-------------------------------");
+    println!("  typeof       :: a -> String                       (returns type name: \"String\", \"Number\", \"List\", etc.)");
+    println!("  is_string    :: a -> Bool");
+    println!("  is_number    :: a -> Bool");
+    println!("  is_int       :: a -> Bool");
+    println!("  is_float     :: a -> Bool");
+    println!("  is_list      :: a -> Bool");
+    println!("  is_bool      :: a -> Bool");
+    println!("  is_function  :: a -> Bool");
+    println!();
+    println!("  assert_string :: a -> a                          (returns value if string, errors otherwise)");
+    println!("  assert_number :: a -> a                          (returns value if number, errors otherwise)");
+    println!("  assert_int    :: a -> a                          (returns value if int, errors otherwise)");
+    println!("  assert_list   :: a -> a                          (returns value if list, errors otherwise)");
+    println!("  assert_bool   :: a -> a                          (returns value if bool, errors otherwise)");
+    println!();
+
+    // Debug & Error Handling
+    println!("Debug & Error Handling:");
+    println!("-----------------------");
+    println!("  trace        :: String -> a -> a                 (prints \"label: value\" to stderr, returns value)");
+    println!("  debug        :: a -> a                           (pretty-prints value structure, returns value)");
+    println!("  error        :: String -> a                      (throws custom error with message)");
+    println!();
+    println!("  Examples:");
+    println!("    trace \"x\" 42                        # Prints \"x: 42\" to stderr, returns 42");
+    println!("    debug [1, 2, 3]                     # Prints pretty list structure, returns [1, 2, 3]");
+    println!("    if (x < 0) then error \"negative\"    # Throws error if x is negative");
+    println!();
+
     // System
     println!("System:");
     println!("-------");
@@ -147,6 +179,7 @@ pub fn run_cli(args: Vec<String>) {
     let mut root_opt: Option<String> = None;
     let mut git_opt: Option<String> = None;
     let mut git_eval_opt: Option<String> = None;
+    let mut eval_input_opt: Option<String> = None;
     let mut debug = false;
     let mut cli_args: Vec<String> = Vec::new();
     let mut i = 1;
@@ -182,6 +215,16 @@ pub fn run_cli(args: Vec<String>) {
                     return;
                 }
             }
+            "--eval-input" => {
+                if i + 1 < args.len() {
+                    eval_input_opt = Some(args[i + 1].clone());
+                    i += 2;
+                    continue;
+                } else {
+                    eprintln!("--eval-input requires a code string argument");
+                    return;
+                }
+            }
             "--debug" => {
                 debug = true;
                 i += 1;
@@ -191,6 +234,12 @@ pub fn run_cli(args: Vec<String>) {
         }
         cli_args.push(args[i].clone());
         i += 1;
+    }
+
+    // Handle --eval-input before other processing
+    if let Some(code) = eval_input_opt {
+        run_eval_string(code, debug);
+        return;
     }
 
     if cli_args.len() > 0 {
@@ -210,6 +259,7 @@ Options:
   --root <dir>       Prepend <dir> to generated file paths
   --git <repo/file>  Fetch and deploy from git raw URL (implies --deploy)
   --git-eval <repo/file>  Fetch and evaluate from git raw URL
+  --eval-input <code>     Evaluate code string directly
   --debug            Enable detailed debug output (lexer/parser/eval)
   --doc              Show all builtin functions (with Haskell-style types)
   -h, --help         Show this brief help
@@ -219,6 +269,8 @@ Examples:
   avon myfile.av --deploy --root ./output
   avon --git pyrotek45/avon/examples/site_generator.av --root ./site
   avon --git-eval pyrotek45/avon/examples/test.av
+  avon --eval-input 'map (\x x * 2) [1, 2, 3]'
+  avon --eval-input 'typeof 42'
 "#;
 
         if cli_args[0] == "--help" || cli_args[0] == "-h" {
@@ -273,12 +325,51 @@ Examples:
     println!("Usage: avon <command> — run 'avon --help' for brief help");
 }
 
+fn run_eval_string(code: String, debug: bool) {
+    if debug {
+        eprintln!("[DEBUG] Starting lexer...");
+    }
+    match tokenize(code.clone()) {
+        Ok(tokens) => {
+            if debug {
+                eprintln!("[DEBUG] Lexer produced {} tokens", tokens.len());
+                for (i, tok) in tokens.iter().enumerate() {
+                    eprintln!("[DEBUG]   Token {}: {:?}", i, tok);
+                }
+                eprintln!("[DEBUG] Starting parser...");
+            }
+            let ast = parse(tokens);
+            if debug {
+                eprintln!("[DEBUG] Parser produced AST: {:?}", ast);
+                eprintln!("[DEBUG] Starting evaluator...");
+            }
+            let mut symbols = initial_builtins();
+            match eval(ast.program, &mut symbols, &code) {
+                Ok(v) => {
+                    match collect_file_templates(&v, &code) {
+                        Ok(files) => {
+                            for (path, content) in files {
+                                println!("--- {} ---", path);
+                                println!("{}", content);
+                            }
+                        }
+                        Err(_) => println!("{}", v.to_string(&code)),
+                    }
+                }
+                Err(e) => eprintln!("{}", e.pretty(&code)),
+            }
+        }
+        Err(e) => eprintln!("{}", e.pretty(&code)),
+    }
+}
+
 fn run_eval(cli_args: Vec<String>, git_opt: Option<String>, debug: bool) {
     if cli_args.len() < 2 {
         eprintln!("eval requires a file path");
         return;
     }
     let filepath = &cli_args[1];
+    let filepath_str = filepath.clone();
     let mut eval_pos: Vec<String> = vec![];
     let mut eval_named: HashMap<String, String> = HashMap::new();
     if cli_args.len() > 2 {
@@ -341,7 +432,7 @@ fn run_eval(cli_args: Vec<String>, git_opt: Option<String>, debug: bool) {
                                                         continue;
                                                     }
                                                     Err(e) => {
-                                                        eprintln!("{}", e.pretty(&file));
+                                                        eprintln!("{}", e.pretty_with_file(&file, Some(&filepath_str)));
                                                         break;
                                                     }
                                                 }
@@ -357,7 +448,7 @@ fn run_eval(cli_args: Vec<String>, git_opt: Option<String>, debug: bool) {
                                                         continue;
                                                     }
                                                     Err(e) => {
-                                                        eprintln!("{}", e.pretty(&file));
+                                                        eprintln!("{}", e.pretty_with_file(&file, Some(&filepath_str)));
                                                         break;
                                                     }
                                                 }
@@ -369,7 +460,7 @@ fn run_eval(cli_args: Vec<String>, git_opt: Option<String>, debug: bool) {
                                                         continue;
                                                     }
                                                     Err(e) => {
-                                                        eprintln!("{}", e.pretty(&file));
+                                                        eprintln!("{}", e.pretty_with_file(&file, Some(&filepath_str)));
                                                         break;
                                                     }
                                                 }
@@ -391,7 +482,7 @@ fn run_eval(cli_args: Vec<String>, git_opt: Option<String>, debug: bool) {
                                                         continue;
                                                     }
                                                     Err(e) => {
-                                                        eprintln!("{}", e.pretty(&file));
+                                                        eprintln!("{}", e.pretty_with_file(&file, Some(&filepath_str)));
                                                         break;
                                                     }
                                                 }
@@ -414,10 +505,10 @@ fn run_eval(cli_args: Vec<String>, git_opt: Option<String>, debug: bool) {
                                 Err(_) => println!("{}", v.to_string(&file)),
                             }
                         }
-                        Err(e) => eprintln!("{}", e.pretty(&file)),
+                        Err(e) => eprintln!("{}", e.pretty_with_file(&file, Some(&filepath_str))),
                     }
                 }
-                Err(e) => eprintln!("{}", e.pretty(&file)),
+                Err(e) => eprintln!("{}", e.pretty_with_file(&file, Some(&filepath_str))),
             }
         }
         Err(e) => eprintln!("{}", e.pretty("")),

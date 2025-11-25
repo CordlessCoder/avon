@@ -1,0 +1,35 @@
+# Error Showcase
+# This file demonstrates various error scenarios with helpful error messages
+
+# Uncomment lines below to see different error types:
+
+# 1. Type mismatch - number to string
+# assert_string 42
+
+# 2. Type mismatch - string to number  
+# assert_number "hello"
+
+# 3. Unknown symbol with typo
+# lenght "test"
+
+# 4. Unknown symbol - type predicate suggestion
+# is_array [1, 2, 3]
+
+# 5. Int vs Float mismatch
+# assert_int 3.14
+
+# 6. Custom error with validation
+# let validate_port = \p
+#   if p < 1 then error "Port must be positive"
+#   else if p > 65535 then error "Port must be less than 65536"
+#   else p
+# in
+# validate_port 70000
+
+# 7. Arithmetic type mismatch
+# let x = 5 in
+# let y = "hello" in
+# x + y
+
+# This file completes successfully when all errors are commented out
+{"All error scenarios are commented out - no errors!"}

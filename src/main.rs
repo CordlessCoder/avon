@@ -2069,4 +2069,375 @@ mod tests {
             assert_eq!(v.to_string(&prog), expected, "Failed for: {}", prog_str);
         }
     }
+
+    // ========== Type Checking and Debugging Functions Tests ==========
+
+    #[test]
+    fn test_typeof() {
+        let tests = vec![
+            (r#"typeof "hello""#, "String"),
+            (r#"typeof 42"#, "Number"),
+            (r#"typeof 3.14"#, "Number"),
+            (r#"typeof [1, 2, 3]"#, "List"),
+            (r#"typeof (1 == 1)"#, "Bool"),
+            (r#"typeof (\x x + 1)"#, "Function"),
+        ];
+
+        for (prog_str, expected) in tests {
+            let prog = prog_str.to_string();
+            let tokens = tokenize(prog.clone()).expect("tokenize");
+            let ast = parse(tokens);
+            let mut symbols = initial_builtins();
+            let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+            assert_eq!(v.to_string(&prog), expected, "Failed for: {}", prog_str);
+        }
+    }
+
+    #[test]
+    fn test_is_string() {
+        let prog = r#"is_string "hello""#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b),
+            other => panic!("expected bool true, got {:?}", other),
+        }
+
+        let prog2 = r#"is_string 42"#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        match v2 {
+            Value::Bool(b) => assert!(!b),
+            other => panic!("expected bool false, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_is_number() {
+        let prog = r#"is_number 42"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b),
+            other => panic!("expected bool true, got {:?}", other),
+        }
+
+        let prog2 = r#"is_number 3.14"#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        match v2 {
+            Value::Bool(b) => assert!(b),
+            other => panic!("expected bool true, got {:?}", other),
+        }
+
+        let prog3 = r#"is_number "42""#.to_string();
+        let tokens3 = tokenize(prog3.clone()).expect("tokenize");
+        let ast3 = parse(tokens3);
+        let mut symbols3 = initial_builtins();
+        let v3 = eval(ast3.program, &mut symbols3, &prog3).expect("eval");
+        match v3 {
+            Value::Bool(b) => assert!(!b),
+            other => panic!("expected bool false, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_is_int() {
+        let prog = r#"is_int 42"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b),
+            other => panic!("expected bool true, got {:?}", other),
+        }
+
+        let prog2 = r#"is_int 3.14"#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        match v2 {
+            Value::Bool(b) => assert!(!b),
+            other => panic!("expected bool false, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_is_float() {
+        let prog = r#"is_float 3.14"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b),
+            other => panic!("expected bool true, got {:?}", other),
+        }
+
+        let prog2 = r#"is_float 42"#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        match v2 {
+            Value::Bool(b) => assert!(!b),
+            other => panic!("expected bool false, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_is_list() {
+        let prog = r#"is_list [1, 2, 3]"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b),
+            other => panic!("expected bool true, got {:?}", other),
+        }
+
+        let prog2 = r#"is_list "not a list""#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        match v2 {
+            Value::Bool(b) => assert!(!b),
+            other => panic!("expected bool false, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_is_bool() {
+        let prog = r#"is_bool (1 == 1)"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b),
+            other => panic!("expected bool true, got {:?}", other),
+        }
+
+        let prog2 = r#"is_bool 1"#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        match v2 {
+            Value::Bool(b) => assert!(!b),
+            other => panic!("expected bool false, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_is_function() {
+        let prog = r#"is_function (\x x + 1)"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b),
+            other => panic!("expected bool true, got {:?}", other),
+        }
+
+        let prog2 = r#"is_function 42"#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        match v2 {
+            Value::Bool(b) => assert!(!b),
+            other => panic!("expected bool false, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_assert_string() {
+        let prog = r#"assert_string "hello""#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "hello");
+
+        // Test failure case
+        let prog2 = r#"assert_string 42"#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let result = eval(ast2.program, &mut symbols2, &prog2);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_assert_number() {
+        let prog = r#"assert_number 42"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "42");
+
+        // Test failure case
+        let prog2 = r#"assert_number "not a number""#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let result = eval(ast2.program, &mut symbols2, &prog2);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_assert_int() {
+        let prog = r#"assert_int 42"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "42");
+
+        // Test failure case with float
+        let prog2 = r#"assert_int 3.14"#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let result = eval(ast2.program, &mut symbols2, &prog2);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_assert_list() {
+        let prog = r#"assert_list [1, 2, 3]"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::List(items) => assert_eq!(items.len(), 3),
+            _ => panic!("expected list"),
+        }
+
+        // Test failure case
+        let prog2 = r#"assert_list "not a list""#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let result = eval(ast2.program, &mut symbols2, &prog2);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_assert_bool() {
+        let prog = r#"assert_bool (1 == 1)"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b),
+            other => panic!("expected bool true, got {:?}", other),
+        }
+
+        // Test failure case
+        let prog2 = r#"assert_bool 1"#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let result = eval(ast2.program, &mut symbols2, &prog2);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_error_function() {
+        let prog = r#"error "Custom error message""#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let result = eval(ast.program, &mut symbols, &prog);
+        assert!(result.is_err());
+        let err_msg = format!("{:?}", result.unwrap_err());
+        assert!(err_msg.contains("Custom error message"));
+    }
+
+    #[test]
+    fn test_trace_function() {
+        // trace should return the value unchanged
+        let prog = r#"trace "label" 42"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "42");
+
+        // Test with string
+        let prog2 = r#"trace "test" "hello""#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        assert_eq!(v2.to_string(&prog2), "hello");
+    }
+
+    #[test]
+    fn test_debug_function() {
+        // debug should return the value unchanged
+        let prog = r#"debug 42"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "42");
+
+        // Test with list
+        let prog2 = r#"debug [1, 2, 3]"#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        match v2 {
+            Value::List(items) => assert_eq!(items.len(), 3),
+            _ => panic!("expected list"),
+        }
+    }
+
+    #[test]
+    fn test_type_checking_in_pipeline() {
+        // Test type checking in a computation pipeline
+        let prog = r#"
+            let x = assert_number 5 in
+            let doubled = x * 2 in
+            let result = assert_number doubled in
+            result
+        "#
+        .to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "10");
+    }
+
+    #[test]
+    fn test_typeof_with_map_operations() {
+        // Test typeof works with map data structures
+        let prog = r#"typeof [["key", "value"]]"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "List");
+    }
 }

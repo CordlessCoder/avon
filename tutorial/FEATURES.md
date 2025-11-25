@@ -370,7 +370,92 @@ fill_template "template.txt" subs
 
 **Examples:** `examples/markdown_readme_gen.av`
 
-### 🔧 Type Conversion
+### � Type Checking & Validation
+
+Avon provides comprehensive type introspection and validation utilities:
+
+#### Type Introspection
+
+| Function | Arity | Purpose | Example | Result |
+|----------|-------|---------|---------|--------|
+| `typeof` | 1 | Get type name | `typeof 42` | `"Number"` |
+| `is_string` | 1 | Check if string | `is_string "hello"` | `true` |
+| `is_number` | 1 | Check if number | `is_number 42` | `true` |
+| `is_int` | 1 | Check if integer | `is_int 42` | `true` |
+| `is_float` | 1 | Check if float | `is_float 3.14` | `true` |
+| `is_list` | 1 | Check if list | `is_list [1,2,3]` | `true` |
+| `is_bool` | 1 | Check if boolean | `is_bool true` | `true` |
+| `is_function` | 1 | Check if function | `is_function (\x x)` | `true` |
+
+#### Type Assertions
+
+| Function | Arity | Purpose | Example | Result |
+|----------|-------|---------|---------|--------|
+| `assert_string` | 1 | Validate string | `assert_string "hi"` | `"hi"` (or error) |
+| `assert_number` | 1 | Validate number | `assert_number 42` | `42` (or error) |
+| `assert_int` | 1 | Validate integer | `assert_int 42` | `42` (or error) |
+| `assert_list` | 1 | Validate list | `assert_list [1,2]` | `[1,2]` (or error) |
+| `assert_bool` | 1 | Validate boolean | `assert_bool true` | `true` (or error) |
+
+#### Debugging & Error Handling
+
+| Function | Arity | Purpose | Example | Result |
+|----------|-------|---------|---------|--------|
+| `trace` | 2 | Print label + value to stderr | `trace "x" 42` | `42` (prints `[TRACE] x: 42`) |
+| `debug` | 1 | Pretty-print structure to stderr | `debug [1,2,3]` | `[1,2,3]` (prints `[DEBUG] List([...])`) |
+| `error` | 1 | Throw custom error | `error "Invalid port"` | Throws error with message |
+
+**Practical Examples:**
+
+```avon
+# Type checking before operations
+let process_config = \cfg
+  let port = assert_number (get cfg "port") in
+  let host = assert_string (get cfg "host") in
+  {"Config: {host}:{port}"}
+in
+
+# Validation with helpful errors
+let validate_port = \p
+  if is_number p then
+    if p > 0 && p < 65536 then p
+    else error "Port must be between 1 and 65535"
+  else error "Port must be a number"
+in
+
+# Debugging computation pipeline
+let compute = \x
+  let doubled = trace "doubled" (x * 2) in
+  let added = trace "added 10" (doubled + 10) in
+  added
+in
+
+# Inspecting complex structures
+let analyze = \data
+  let _ = debug data in
+  typeof data
+in
+
+# Type-safe wrapper
+let safe_divide = \a \b
+  let num = assert_number a in
+  let denom = assert_number b in
+  if denom == 0 then
+    error "Division by zero"
+  else
+    num / denom
+in
+```
+
+**Use Cases:**
+- **Validation:** Ensure configuration values have correct types
+- **Debugging:** Trace intermediate values in computations
+- **Error Messages:** Provide clear custom error messages
+- **Type Safety:** Add runtime type checks to critical functions
+
+**Examples:** `examples/type_checking_demo.av`
+
+### �🔧 Type Conversion
 
 | Function | Arity | Purpose | Example |
 |----------|-------|---------|---------|
