@@ -1795,4 +1795,278 @@ mod tests {
             }
         }
     }
+
+    // Tests for new formatting functions
+
+    #[test]
+    fn test_format_hex() {
+        let prog = "format_hex 255".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "ff");
+
+        let prog2 = "format_hex 16".to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        assert_eq!(v2.to_string(&prog2), "10");
+    }
+
+    #[test]
+    fn test_format_octal() {
+        let prog = "format_octal 64".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "100");
+    }
+
+    #[test]
+    fn test_format_binary() {
+        let prog = "format_binary 15".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "1111");
+
+        let prog2 = "format_binary 255".to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        assert_eq!(v2.to_string(&prog2), "11111111");
+    }
+
+    #[test]
+    fn test_format_scientific() {
+        let prog = "format_scientific 12345.6789 2".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert!(v.to_string(&prog).contains("e"));
+        assert!(v.to_string(&prog).contains("1.23"));
+    }
+
+    #[test]
+    fn test_format_bytes() {
+        // Test bytes
+        let prog = "format_bytes 512".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "512 B");
+
+        // Test KB
+        let prog2 = "format_bytes 2048".to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        assert!(v2.to_string(&prog2).contains("KB"));
+
+        // Test MB
+        let prog3 = "format_bytes 1536000".to_string();
+        let tokens3 = tokenize(prog3.clone()).expect("tokenize");
+        let ast3 = parse(tokens3);
+        let mut symbols3 = initial_builtins();
+        let v3 = eval(ast3.program, &mut symbols3, &prog3).expect("eval");
+        assert!(v3.to_string(&prog3).contains("MB"));
+    }
+
+    #[test]
+    fn test_format_list() {
+        let prog = r#"format_list ["a", "b", "c"] ", ""#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "a, b, c");
+
+        let prog2 = r#"format_list [1, 2, 3] " | ""#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        assert_eq!(v2.to_string(&prog2), "1 | 2 | 3");
+    }
+
+    #[test]
+    fn test_format_table() {
+        let prog = r#"format_table [["A", "B"], ["1", "2"], ["3", "4"]] " | ""#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        let result = v.to_string(&prog);
+        assert!(result.contains("A | B"));
+        assert!(result.contains("1 | 2"));
+        assert!(result.contains("3 | 4"));
+    }
+
+    #[test]
+    fn test_format_json() {
+        // Test string
+        let prog = r#"format_json "hello""#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "\"hello\"");
+
+        // Test number
+        let prog2 = "format_json 42".to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        assert_eq!(v2.to_string(&prog2), "42");
+
+        // Test list
+        let prog3 = r#"format_json [1, 2, 3]"#.to_string();
+        let tokens3 = tokenize(prog3.clone()).expect("tokenize");
+        let ast3 = parse(tokens3);
+        let mut symbols3 = initial_builtins();
+        let v3 = eval(ast3.program, &mut symbols3, &prog3).expect("eval");
+        assert_eq!(v3.to_string(&prog3), "[1, 2, 3]");
+    }
+
+    #[test]
+    fn test_format_currency() {
+        let prog = r#"format_currency 19.99 "$""#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "$19.99");
+
+        let prog2 = r#"format_currency 100 "€""#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        assert_eq!(v2.to_string(&prog2), "€100.00");
+    }
+
+    #[test]
+    fn test_format_percent() {
+        let prog = "format_percent 0.75 2".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "75.00%");
+
+        let prog2 = "format_percent 0.856 1".to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        assert_eq!(v2.to_string(&prog2), "85.6%");
+    }
+
+    #[test]
+    fn test_format_bool() {
+        // Test yes/no format
+        let prog = r#"format_bool (1 == 1) "yes/no""#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "Yes");
+
+        let prog2 = r#"format_bool (1 == 2) "yes/no""#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        assert_eq!(v2.to_string(&prog2), "No");
+
+        // Test on/off format
+        let prog3 = r#"format_bool (5 > 3) "on/off""#.to_string();
+        let tokens3 = tokenize(prog3.clone()).expect("tokenize");
+        let ast3 = parse(tokens3);
+        let mut symbols3 = initial_builtins();
+        let v3 = eval(ast3.program, &mut symbols3, &prog3).expect("eval");
+        assert_eq!(v3.to_string(&prog3), "On");
+
+        // Test enabled format
+        let prog4 = r#"format_bool (1 == 1) "enabled""#.to_string();
+        let tokens4 = tokenize(prog4.clone()).expect("tokenize");
+        let ast4 = parse(tokens4);
+        let mut symbols4 = initial_builtins();
+        let v4 = eval(ast4.program, &mut symbols4, &prog4).expect("eval");
+        assert_eq!(v4.to_string(&prog4), "Enabled");
+    }
+
+    #[test]
+    fn test_truncate() {
+        let prog = r#"truncate "This is a long string" 10"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "This is...");
+
+        // Test string shorter than max length
+        let prog2 = r#"truncate "Short" 10"#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        assert_eq!(v2.to_string(&prog2), "Short");
+    }
+
+    #[test]
+    fn test_center() {
+        let prog = r#"center "Hi" 10"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        let result = v.to_string(&prog);
+        assert_eq!(result.len(), 10);
+        assert_eq!(result.trim(), "Hi");
+        assert!(result.starts_with("    "));
+
+        // Test string longer than width
+        let prog2 = r#"center "VeryLongText" 5"#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        assert_eq!(v2.to_string(&prog2), "VeryLongText");
+    }
+
+    #[test]
+    fn test_all_formatting_functions() {
+        // Quick smoke test for all new formatting functions
+        let tests = vec![
+            ("format_hex 255", "ff"),
+            ("format_octal 8", "10"),
+            ("format_binary 7", "111"),
+            ("format_bytes 1024", "1.00 KB"),
+            ("format_list [\"a\", \"b\"] \",\"", "a,b"),
+            ("format_json 123", "123"),
+            ("format_currency 10 \"$\"", "$10.00"),
+            ("format_percent 0.5 0", "50%"),
+            ("truncate \"hello\" 3", "hel"),
+            ("center \"x\" 3", " x "),
+        ];
+
+        for (prog_str, expected) in tests {
+            let prog = prog_str.to_string();
+            let tokens = tokenize(prog.clone()).expect("tokenize");
+            let ast = parse(tokens);
+            let mut symbols = initial_builtins();
+            let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+            assert_eq!(v.to_string(&prog), expected, "Failed for: {}", prog_str);
+        }
+    }
 }

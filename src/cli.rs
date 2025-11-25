@@ -66,8 +66,26 @@ fn print_builtin_docs() {
     println!("  to_int       :: String -> Int");
     println!("  to_float     :: String -> Float");
     println!("  to_bool      :: a -> Bool");
-    println!("  format_int   :: Int -> Int -> String");
-    println!("  format_float :: Float -> Int -> String");
+    println!();
+
+    // Formatting Functions
+    println!("Formatting Functions:");
+    println!("---------------------");
+    println!("  format_int        :: Number -> Int -> String          (zero-padded integers)");
+    println!("  format_float      :: Number -> Int -> String          (decimal precision)");
+    println!("  format_hex        :: Number -> String                 (hexadecimal)");
+    println!("  format_octal      :: Number -> String                 (octal)");
+    println!("  format_binary     :: Number -> String                 (binary)");
+    println!("  format_scientific :: Number -> Int -> String          (scientific notation)");
+    println!("  format_bytes      :: Number -> String                 (human-readable bytes)");
+    println!("  format_list       :: [a] -> String -> String          (join with separator)");
+    println!("  format_table      :: [[a]] -> String -> String        (2D table)");
+    println!("  format_json       :: a -> String                      (JSON representation)");
+    println!("  format_currency   :: Number -> String -> String       (currency with symbol)");
+    println!("  format_percent    :: Number -> Int -> String          (percentage)");
+    println!("  format_bool       :: Bool -> String -> String         (custom bool formatting)");
+    println!("  truncate          :: String -> Int -> String          (truncate with ...)");
+    println!("  center            :: String -> Int -> String          (center-align text)");
     println!();
 
     // HTML Helpers
@@ -106,7 +124,7 @@ fn print_builtin_docs() {
     // Data Utilities
     println!("Data Utilities:");
     println!("---------------");
-    println!("  json_parse   :: String -> Value");
+    println!("  json_parse   :: String -> a                       (JSON arrays → lists, objects → [[k,v]] maps)");
     println!("  import       :: String|Path -> Value");
     println!();
 

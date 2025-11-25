@@ -6,7 +6,7 @@ let my_list = [1, 2, 3, 4, 5] in
 
 # 2. STRING FORMATTING
 let repeated = repeat "-" 40 in
-let padded_num = pad_left (str 42) 5 "0" in
+let padded_num = pad_left (to_string 42) 5 "0" in
 let config_block = indent "host: localhost
 port: 8080" 4 in
 

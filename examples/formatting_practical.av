@@ -1,0 +1,63 @@
+# Practical Formatting Examples
+# Real-world use cases for formatting functions
+
+# Configuration Report Generator
+let config_name = "Production Server" in
+let memory_bytes = 8589934592 in
+let cpu_count = 16 in
+let disk_bytes = 549755813888 in
+let uptime_percent = 0.9987 in
+let is_secure = (1 == 1) in
+
+# Log Entry Formatter
+let log_level = "ERROR" in
+let error_code = 404 in
+let request_count = 15234 in
+
+# Data Table
+let metrics = [
+  ["Metric", "Value", "Status"],
+  ["CPU Usage", "45%", "Normal"],
+  ["Memory", "6.2 GB", "Normal"],
+  ["Disk I/O", "125 MB/s", "High"]
+] in
+
+# Color Codes (for terminal output)
+let colors = ["Red", "Green", "Blue"] in
+
+@/tmp/server_report.txt {"
+════════════════════════════════════════
+       SERVER CONFIGURATION REPORT
+════════════════════════════════════════
+
+Server: {config_name}
+Generated: 2024-11-24
+
+SYSTEM RESOURCES
+────────────────────────────────────────
+Memory:          {format_bytes memory_bytes}
+Disk Space:      {format_bytes disk_bytes}
+CPU Cores:       {cpu_count}
+Uptime:          {format_percent uptime_percent 2}
+Secure Mode:     {format_bool is_secure "enabled"}
+
+PERFORMANCE METRICS
+────────────────────────────────────────
+{format_table metrics " │ "}
+
+DIAGNOSTICS
+────────────────────────────────────────
+Last Error:      {log_level} (Code: {format_hex error_code})
+Request Count:   {format_list [request_count] ", "}
+Binary Status:   {format_binary cpu_count}
+
+CONFIGURATION DATA (JSON)
+────────────────────────────────────────
+{format_json ["server", "production", "active"]}
+
+Available Colors: {format_list colors " | "}
+
+════════════════════════════════════════
+            END OF REPORT
+════════════════════════════════════════
+"}

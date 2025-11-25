@@ -1,0 +1,128 @@
+# Comprehensive Formatting Functions Demo
+# Demonstrates all 13 new formatting functions
+
+# Number formatting in different bases
+let num = 255 in
+let hex_val = format_hex num in
+let octal_val = format_octal num in
+let binary_val = format_binary num in
+
+# Scientific notation
+let big_num = 12345678.9 in
+let scientific = format_scientific big_num 2 in
+
+# Byte formatting
+let file_size = 1536000 in
+let bytes_formatted = format_bytes file_size in
+
+# List formatting
+let items = ["apple", "banana", "cherry"] in
+let csv = format_list items ", " in
+let pipe_separated = format_list items " | " in
+
+# Table formatting
+let table_data = [
+  ["Name", "Age", "City"],
+  ["Alice", "30", "NYC"],
+  ["Bob", "25", "LA"],
+  ["Charlie", "35", "Chicago"]
+] in
+let table = format_table table_data " | " in
+
+# JSON formatting
+let json_list = format_json ["hello", "world", "123"] in
+let json_num = format_json 42 in
+let json_bool = format_json (1 == 1) in
+
+# Currency formatting
+let price = 19.99 in
+let usd = format_currency price "$" in
+let eur = format_currency price "€" in
+let gbp = format_currency price "£" in
+
+# Percentage formatting
+let ratio = 0.856 in
+let percent_2 = format_percent ratio 2 in
+let percent_1 = format_percent ratio 1 in
+
+# Boolean formatting
+let is_active = (1 == 1) in
+let yesno = format_bool is_active "yes/no" in
+let onoff = format_bool is_active "on/off" in
+let enabled = format_bool is_active "enabled" in
+let success = format_bool is_active "success" in
+
+# String manipulation
+let long_text = "This is a very long string that needs to be truncated" in
+let truncated = truncate long_text 20 in
+
+let title = "AVON" in
+let centered = center title 20 in
+
+@/tmp/formatting_demo.txt {"
+Formatting Functions Demonstration
+===================================
+
+Number Formatting (Base Conversions)
+-------------------------------------
+Original number: {num}
+Hexadecimal:     {hex_val}
+Octal:           {octal_val}
+Binary:          {binary_val}
+
+Scientific Notation
+-------------------
+Original:    {big_num}
+Scientific:  {scientific}
+
+Bytes (Human Readable)
+----------------------
+Bytes:       {file_size}
+Formatted:   {bytes_formatted}
+
+List Formatting
+---------------
+Items:       {items}
+CSV:         {csv}
+Pipe-sep:    {pipe_separated}
+
+Table Formatting
+----------------
+{table}
+
+JSON Formatting
+---------------
+List as JSON:    {json_list}
+Number as JSON:  {json_num}
+Bool as JSON:    {json_bool}
+
+Currency Formatting
+-------------------
+Price:       {price}
+USD:         {usd}
+EUR:         {eur}
+GBP:         {gbp}
+
+Percentage Formatting
+---------------------
+Ratio:       {ratio}
+As percent:  {percent_2}
+As percent:  {percent_1}
+
+Boolean Formatting
+------------------
+Status:      {is_active}
+Yes/No:      {yesno}
+On/Off:      {onoff}
+Enabled:     {enabled}
+Success:     {success}
+
+String Manipulation
+-------------------
+Long text:   {long_text}
+Truncated:   {truncated}
+Title:       "{title}"
+Centered:    "{centered}"
+
+All 13 new formatting functions demonstrated!
+"}

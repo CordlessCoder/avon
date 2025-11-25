@@ -370,7 +370,7 @@ fill_template "template.txt" subs
 
 **Examples:** `examples/markdown_readme_gen.av`
 
-### � Type Conversion & Formatting
+### 🔧 Type Conversion
 
 | Function | Arity | Purpose | Example |
 |----------|-------|---------|---------|
@@ -378,20 +378,86 @@ fill_template "template.txt" subs
 | `to_int` | 1 | Convert to integer | `to_int "42"` → `42` |
 | `to_float` | 1 | Convert to float | `to_float "3.14"` → `3.14` |
 | `to_bool` | 1 | Convert to boolean | `to_bool "yes"` → `true` |
-| `format_int` | 2 | Format int with padding | `format_int 7 3` → `"007"` |
-| `format_float` | 2 | Format float with precision | `format_float 3.14159 2` → `"3.14"` |
 
-**Examples:** `examples/casting_demo.av`
+### 🎨 Formatting Functions
 
-### �📦 Data & Utilities
+Avon provides a comprehensive suite of 15 formatting functions for various data types:
+
+#### Number Formatting
+
+| Function | Arity | Purpose | Example | Result |
+|----------|-------|---------|---------|--------|
+| `format_int` | 2 | Zero-padded integers | `format_int 7 3` | `"007"` |
+| `format_float` | 2 | Decimal precision | `format_float 3.14159 2` | `"3.14"` |
+| `format_hex` | 1 | Hexadecimal | `format_hex 255` | `"ff"` |
+| `format_octal` | 1 | Octal | `format_octal 64` | `"100"` |
+| `format_binary` | 1 | Binary | `format_binary 15` | `"1111"` |
+| `format_scientific` | 2 | Scientific notation | `format_scientific 12345 2` | `"1.23e4"` |
+| `format_bytes` | 1 | Human-readable bytes | `format_bytes 1536000` | `"1.46 MB"` |
+| `format_currency` | 2 | Currency with symbol | `format_currency 19.99 "$"` | `"$19.99"` |
+| `format_percent` | 2 | Percentage | `format_percent 0.856 2` | `"85.60%"` |
+
+#### Collection Formatting
+
+| Function | Arity | Purpose | Example | Result |
+|----------|-------|---------|---------|--------|
+| `format_list` | 2 | Join with separator | `format_list ["a","b","c"] ", "` | `"a, b, c"` |
+| `format_table` | 2 | 2D table | `format_table [["A","B"],["1","2"]] " \| "` | `"A \| B\n1 \| 2"` |
+| `format_json` | 1 | JSON representation | `format_json [1,2,3]` | `"[1, 2, 3]"` |
+
+#### Text Formatting
+
+| Function | Arity | Purpose | Example | Result |
+|----------|-------|---------|---------|--------|
+| `format_bool` | 2 | Custom bool text | `format_bool (1==1) "yes/no"` | `"Yes"` |
+| `truncate` | 2 | Truncate with ... | `truncate "Long text" 8` | `"Long ..."` |
+| `center` | 2 | Center-align | `center "Hi" 10` | `"    Hi    "` |
+
+**Boolean Format Styles:**
+- `"yes/no"` → Yes/No
+- `"on/off"` → On/Off
+- `"enabled"` → Enabled/Disabled
+- `"active"` → Active/Inactive
+- `"success"` → Success/Failure
+- `"1/0"` → 1/0
+
+**Examples:**
+```avon
+# Number bases
+format_hex 255           # "ff"
+format_binary 15         # "1111"
+
+# Human-readable
+format_bytes 1048576     # "1.00 MB"
+format_currency 99.95 "$" # "$99.95"
+format_percent 0.75 1    # "75.0%"
+
+# Collections
+format_list ["apple", "banana", "cherry"] ", "
+# "apple, banana, cherry"
+
+format_table [["Name", "Age"], ["Alice", "30"], ["Bob", "25"]] " | "
+# "Name | Age\nAlice | 30\nBob | 25"
+
+# Text formatting
+format_bool (age > 18) "yes/no"  # "Yes" or "No"
+truncate "Very long text here" 10  # "Very lo..."
+center "Title" 20                  # "       Title        "
+```
+
+**Full Demo:** `examples/formatting_demo.av`
+
+### � Data & Utilities
 
 | Function | Arity | Purpose | Example |
 |----------|-------|---------|---------|
 | `import` | 1 | Load another `.av` file | `import "lib.av"` |
-| `json_parse` | 1 | Parse JSON string | `json_parse "{\"x\": 1}"` |
+| `json_parse` | 1 | Parse JSON (objects → maps, arrays → lists) | `json_parse "{\"x\": 1}"` → `[["x", 1]]` |
 | `os` | 0 | Get operating system | `os` → `"linux"`, `"windows"`, `"macos"` |
 
-**Examples:** `examples/import_example.av`
+**Note:** `json_parse` converts JSON objects to list-of-pairs maps (e.g., `{"a": 1}` → `[["a", 1]]`), which work seamlessly with map operations like `get`, `keys`, `values`, etc.
+
+**Examples:** `examples/import_example.av`, `examples/json_map_demo.av`
 
 ---
 

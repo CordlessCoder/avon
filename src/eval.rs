@@ -175,6 +175,60 @@ pub fn initial_builtins() -> HashMap<String, Value> {
         Value::Builtin("format_float".to_string(), Vec::new()),
     );
 
+    // Formatting functions
+    m.insert(
+        "format_hex".to_string(),
+        Value::Builtin("format_hex".to_string(), Vec::new()),
+    );
+    m.insert(
+        "format_octal".to_string(),
+        Value::Builtin("format_octal".to_string(), Vec::new()),
+    );
+    m.insert(
+        "format_binary".to_string(),
+        Value::Builtin("format_binary".to_string(), Vec::new()),
+    );
+    m.insert(
+        "format_scientific".to_string(),
+        Value::Builtin("format_scientific".to_string(), Vec::new()),
+    );
+    m.insert(
+        "format_bytes".to_string(),
+        Value::Builtin("format_bytes".to_string(), Vec::new()),
+    );
+    m.insert(
+        "format_list".to_string(),
+        Value::Builtin("format_list".to_string(), Vec::new()),
+    );
+    m.insert(
+        "format_table".to_string(),
+        Value::Builtin("format_table".to_string(), Vec::new()),
+    );
+    m.insert(
+        "format_json".to_string(),
+        Value::Builtin("format_json".to_string(), Vec::new()),
+    );
+    m.insert(
+        "format_currency".to_string(),
+        Value::Builtin("format_currency".to_string(), Vec::new()),
+    );
+    m.insert(
+        "format_percent".to_string(),
+        Value::Builtin("format_percent".to_string(), Vec::new()),
+    );
+    m.insert(
+        "format_bool".to_string(),
+        Value::Builtin("format_bool".to_string(), Vec::new()),
+    );
+    m.insert(
+        "truncate".to_string(),
+        Value::Builtin("truncate".to_string(), Vec::new()),
+    );
+    m.insert(
+        "center".to_string(),
+        Value::Builtin("center".to_string(), Vec::new()),
+    );
+
     // List operations (advanced)
     m.insert(
         "flatmap".to_string(),
@@ -690,6 +744,19 @@ pub fn apply_function(func: &Value, arg: Value, source: &str) -> Result<Value, E
                 "to_bool" => 1,
                 "format_int" => 2,
                 "format_float" => 2,
+                "format_hex" => 1,
+                "format_octal" => 1,
+                "format_binary" => 1,
+                "format_scientific" => 2,
+                "format_bytes" => 1,
+                "format_list" => 2,
+                "format_table" => 2,
+                "format_json" => 1,
+                "format_currency" => 2,
+                "format_percent" => 2,
+                "format_bool" => 2,
+                "truncate" => 2,
+                "center" => 2,
                 "flatmap" => 2,
                 "flatten" => 1,
                 "get" => 2,
@@ -1502,6 +1569,291 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
                 Err(EvalError::type_mismatch(
                     "number, number",
                     format!("{}, {}", val.to_string(source), precision.to_string(source)),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "format_hex" => {
+            // format_hex :: Number -> String
+            // Formats a number as hexadecimal (lowercase)
+            let val = &args[0];
+            if let Value::Number(num) = val {
+                let int_val = match num {
+                    Number::Int(i) => *i,
+                    Number::Float(f) => *f as i64,
+                };
+                Ok(Value::String(format!("{:x}", int_val)))
+            } else {
+                Err(EvalError::type_mismatch(
+                    "number",
+                    val.to_string(source),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "format_octal" => {
+            // format_octal :: Number -> String
+            // Formats a number as octal
+            let val = &args[0];
+            if let Value::Number(num) = val {
+                let int_val = match num {
+                    Number::Int(i) => *i,
+                    Number::Float(f) => *f as i64,
+                };
+                Ok(Value::String(format!("{:o}", int_val)))
+            } else {
+                Err(EvalError::type_mismatch(
+                    "number",
+                    val.to_string(source),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "format_binary" => {
+            // format_binary :: Number -> String
+            // Formats a number as binary
+            let val = &args[0];
+            if let Value::Number(num) = val {
+                let int_val = match num {
+                    Number::Int(i) => *i,
+                    Number::Float(f) => *f as i64,
+                };
+                Ok(Value::String(format!("{:b}", int_val)))
+            } else {
+                Err(EvalError::type_mismatch(
+                    "number",
+                    val.to_string(source),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "format_scientific" => {
+            // format_scientific :: Number -> Int -> String
+            // Formats a number in scientific notation with specified precision
+            let val = &args[0];
+            let precision = &args[1];
+            if let (Value::Number(num), Value::Number(Number::Int(p))) = (val, precision) {
+                let float_val = match num {
+                    Number::Int(i) => *i as f64,
+                    Number::Float(f) => *f,
+                };
+                let formatted = if *p >= 0 {
+                    format!("{:.prec$e}", float_val, prec = *p as usize)
+                } else {
+                    format!("{:e}", float_val)
+                };
+                Ok(Value::String(formatted))
+            } else {
+                Err(EvalError::type_mismatch(
+                    "number, number",
+                    format!("{}, {}", val.to_string(source), precision.to_string(source)),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "format_bytes" => {
+            // format_bytes :: Number -> String
+            // Formats a number as human-readable bytes (KB, MB, GB, etc.)
+            let val = &args[0];
+            if let Value::Number(num) = val {
+                let bytes = match num {
+                    Number::Int(i) => *i as f64,
+                    Number::Float(f) => *f,
+                };
+                let formatted = if bytes < 1024.0 {
+                    format!("{} B", bytes as i64)
+                } else if bytes < 1024.0 * 1024.0 {
+                    format!("{:.2} KB", bytes / 1024.0)
+                } else if bytes < 1024.0 * 1024.0 * 1024.0 {
+                    format!("{:.2} MB", bytes / (1024.0 * 1024.0))
+                } else if bytes < 1024.0 * 1024.0 * 1024.0 * 1024.0 {
+                    format!("{:.2} GB", bytes / (1024.0 * 1024.0 * 1024.0))
+                } else {
+                    format!("{:.2} TB", bytes / (1024.0 * 1024.0 * 1024.0 * 1024.0))
+                };
+                Ok(Value::String(formatted))
+            } else {
+                Err(EvalError::type_mismatch(
+                    "number",
+                    val.to_string(source),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "format_list" => {
+            // format_list :: [a] -> String -> String
+            // Formats a list with a custom separator
+            let list = &args[0];
+            let separator = &args[1];
+            if let (Value::List(items), Value::String(sep)) = (list, separator) {
+                let strings: Vec<String> = items.iter().map(|v| v.to_string(source)).collect();
+                Ok(Value::String(strings.join(sep)))
+            } else {
+                Err(EvalError::type_mismatch(
+                    "list, string",
+                    format!("{}, {}", list.to_string(source), separator.to_string(source)),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "format_table" => {
+            // format_table :: [[a]] -> String -> String
+            // Formats a 2D list as a simple table with column separator
+            let table = &args[0];
+            let separator = &args[1];
+            if let (Value::List(rows), Value::String(sep)) = (table, separator) {
+                let mut lines = Vec::new();
+                for row in rows {
+                    if let Value::List(cols) = row {
+                        let strings: Vec<String> = cols.iter().map(|v| v.to_string(source)).collect();
+                        lines.push(strings.join(sep));
+                    } else {
+                        lines.push(row.to_string(source));
+                    }
+                }
+                Ok(Value::String(lines.join("\n")))
+            } else {
+                Err(EvalError::type_mismatch(
+                    "list, string",
+                    format!("{}, {}", table.to_string(source), separator.to_string(source)),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "format_json" => {
+            // format_json :: a -> String
+            // Formats any value as JSON (basic implementation)
+            let val = &args[0];
+            let json_str = match val {
+                Value::String(s) => format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\"")),
+                Value::Number(Number::Int(i)) => format!("{}", i),
+                Value::Number(Number::Float(f)) => format!("{}", f),
+                Value::Bool(b) => format!("{}", b),
+                Value::List(items) => {
+                    let json_items: Vec<String> = items
+                        .iter()
+                        .map(|v| match execute_builtin("format_json", &vec![v.clone()], source) {
+                            Ok(Value::String(s)) => s,
+                            _ => v.to_string(source),
+                        })
+                        .collect();
+                    format!("[{}]", json_items.join(", "))
+                }
+                Value::None => "null".to_string(),
+                other => format!("\"{}\"", other.to_string(source).replace('\\', "\\\\").replace('"', "\\\"")),
+            };
+            Ok(Value::String(json_str))
+        }
+        "format_currency" => {
+            // format_currency :: Number -> String -> String
+            // Formats a number as currency with the given symbol
+            let val = &args[0];
+            let symbol = &args[1];
+            if let (Value::Number(num), Value::String(sym)) = (val, symbol) {
+                let float_val = match num {
+                    Number::Int(i) => *i as f64,
+                    Number::Float(f) => *f,
+                };
+                let formatted = format!("{}{:.2}", sym, float_val);
+                Ok(Value::String(formatted))
+            } else {
+                Err(EvalError::type_mismatch(
+                    "number, string",
+                    format!("{}, {}", val.to_string(source), symbol.to_string(source)),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "format_percent" => {
+            // format_percent :: Number -> Int -> String
+            // Formats a number as a percentage with specified decimal places
+            let val = &args[0];
+            let precision = &args[1];
+            if let (Value::Number(num), Value::Number(Number::Int(p))) = (val, precision) {
+                let float_val = match num {
+                    Number::Int(i) => *i as f64,
+                    Number::Float(f) => *f,
+                };
+                let formatted = if *p >= 0 {
+                    format!("{:.prec$}%", float_val * 100.0, prec = *p as usize)
+                } else {
+                    format!("{}%", float_val * 100.0)
+                };
+                Ok(Value::String(formatted))
+            } else {
+                Err(EvalError::type_mismatch(
+                    "number, number",
+                    format!("{}, {}", val.to_string(source), precision.to_string(source)),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "format_bool" => {
+            // format_bool :: Bool -> String -> String
+            // Formats a boolean with custom true/false strings (e.g., "Yes"/"No")
+            let val = &args[0];
+            let format_style = &args[1];
+            if let (Value::Bool(b), Value::String(style)) = (val, format_style) {
+                let result = match style.to_lowercase().as_str() {
+                    "yesno" | "yes/no" => if *b { "Yes" } else { "No" },
+                    "onoff" | "on/off" => if *b { "On" } else { "Off" },
+                    "10" | "1/0" => if *b { "1" } else { "0" },
+                    "enabled" => if *b { "Enabled" } else { "Disabled" },
+                    "active" => if *b { "Active" } else { "Inactive" },
+                    "success" => if *b { "Success" } else { "Failure" },
+                    _ => if *b { "true" } else { "false" },
+                };
+                Ok(Value::String(result.to_string()))
+            } else {
+                Err(EvalError::type_mismatch(
+                    "bool, string",
+                    format!("{}, {}", val.to_string(source), format_style.to_string(source)),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "truncate" => {
+            // truncate :: String -> Int -> String
+            // Truncates a string to the specified length, adding "..." if truncated
+            let text = &args[0];
+            let max_len = &args[1];
+            if let (Value::String(s), Value::Number(Number::Int(len))) = (text, max_len) {
+                let max_length = (*len).max(0) as usize;
+                if s.len() <= max_length {
+                    Ok(Value::String(s.clone()))
+                } else if max_length <= 3 {
+                    Ok(Value::String(s.chars().take(max_length).collect()))
+                } else {
+                    let truncated: String = s.chars().take(max_length - 3).collect();
+                    Ok(Value::String(format!("{}...", truncated)))
+                }
+            } else {
+                Err(EvalError::type_mismatch(
+                    "string, number",
+                    format!("{}, {}", text.to_string(source), max_len.to_string(source)),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "center" => {
+            // center :: String -> Int -> String
+            // Centers a string within the specified width
+            let text = &args[0];
+            let width = &args[1];
+            if let (Value::String(s), Value::Number(Number::Int(w))) = (text, width) {
+                let total_width = (*w).max(0) as usize;
+                if s.len() >= total_width {
+                    Ok(Value::String(s.clone()))
+                } else {
+                    let padding = total_width - s.len();
+                    let left_pad = padding / 2;
+                    let right_pad = padding - left_pad;
+                    Ok(Value::String(format!("{}{}{}", " ".repeat(left_pad), s, " ".repeat(right_pad))))
+                }
+            } else {
+                Err(EvalError::type_mismatch(
+                    "string, number",
+                    format!("{}, {}", text.to_string(source), width.to_string(source)),
                     find_line_for_symbol("", source),
                 ))
             }

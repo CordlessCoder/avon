@@ -17,23 +17,21 @@ let port = get config "port" in
 let debug_flag = get config "debug" in
 
 # Access array
-let deps = get data "dependencies" in
+let deps = get data "dependencies" in {"
+    JSON Parsing Demo
+    =================
 
-concat
-  "JSON Parsing Demo\n"
-  (concat "=================\n\n" 
-  (concat "App: " 
-  (concat (to_string app_name)
-  (concat "\nVersion: "
-  (concat (to_string version)
-  (concat "\nAuthor: "
-  (concat (to_string author)
-  (concat "\n\nAvailable keys: "
-  (concat (to_string available_keys)
-  (concat "\n\nPort: "
-  (concat (to_string port)
-  (concat "\nDebug: "
-  (concat (to_string debug_flag)
-  (concat "\n\nDependencies: "
-  (concat (to_string deps)
-  "\n\nMap operations work on parsed JSON!"))))))))))))))))
+    App: {app_name}
+    Version: {version}
+    Author: {author}
+
+    Available keys: {available_keys}
+
+    Nested config object:
+    Port: {port}
+    Debug: {debug_flag}
+
+    Dependencies: {deps}
+
+    Map operations work on parsed JSON!
+"}
