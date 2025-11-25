@@ -120,75 +120,184 @@ This works with any nesting level and preserves relative indentation (useful for
 
 **Examples:** `examples/list_insert.av`, `examples/complex_template.av`, `examples/baseline_indentation_demo.av`
 
-#### Template Escape Hatch
+#### Template Escape Hatch: Variable Brace Delimiters
 
-Templates start with one or more opening braces followed immediately by a quote:
+Avon templates use a **variable-brace delimiter system** that lets you choose how many opening braces to use. This is a powerful feature that adapts to your content's needs:
 
 ```
 @/file.txt {" ... "}      # single-brace template (open_count = 1)
 @/file.txt {{" ... "}}    # double-brace template (open_count = 2)
+@/file.txt {{{" ... "}}}  # triple-brace template (open_count = 3)
 ```
+
+**Why this design?**
+
+When your template output contains curly braces (JSON, HCL, Lua, Python, etc.), you need a way to distinguish:
+- **Literal braces in the output** (e.g., `{` for Lua tables, JSON objects)
+- **Interpolation braces** (e.g., `{variable_name}` to substitute values)
+
+By allowing multiple opening braces, you can choose a delimiter that requires **minimal escaping** for your specific use case.
+
+**How it works:**
 
 Interpolation uses exactly the same number of leading braces as the template opening:
 
 ```
-@/single.txt {"Value: { 1 + 2 }"}
-@/double.txt {{"Value: {{ 1 + 2 }}"}}
+@/single.txt {"Value: { 1 + 2 }"}        # interpolation with { }
+@/double.txt {{"Value: {{ 1 + 2 }}"}}    # interpolation with {{ }}
+@/triple.txt {{{" Value: {{{ 1 + 2 }}} "}}}  # interpolation with {{{ }}}
 ```
 
 To produce literal braces without starting interpolation, use one more brace than the opener:
 
-| Template opener | Interpolation | Literal `{` | Literal `}` | Example |
+| Template opener | Interpolation | Literal `{` | Literal `}` | When to use |
 |-----------------|--------------|-------------|-------------|---------|
-| `{`             | `{ expr }`   | `{{` → `{`  | `}}` → `}`  | `@/f.txt {"x: {{y: { z }}}"}` |
-| `{{`            | `{{ expr }}` | `{{{` → `{` | `}}}` → `}` | `@/f.txt {{"obj: {{{ x: {{ y }} }}}"}}`  |
+| `{`             | `{ expr }`   | `{{` → `{`  | `}}` → `}`  | Few/no braces in output (rarely needs escaping) |
+| `{{`            | `{{ expr }}` | `{{{` → `{` | `}}}` → `}` | Many braces in output (JSON, HCL, Terraform) |
+| `{{{`           | `{{{ expr }}}` | `{{{{` → `{` | `}}}}` → `}` | Output full of triple-braces (rare) |
 
 **General rule:** A run of k consecutive braces outputs (k - open_count) literal braces when k > open_count.
-- Single-brace: `{{` (2) → 1 literal, `{{{{` (4) → 3 literals
-- Double-brace: `{{{` (3) → 1 literal, `{{{{` (4) → 2 literals
+- Single-brace: `{{` (2 braces) → 1 literal `{`, `{{{{` (4 braces) → 3 literals `{{{`
+- Double-brace: `{{{` (3 braces) → 1 literal `{`, `{{{{` (4 braces) → 2 literals `{{`
+- Triple-brace: `{{{{` (4 braces) → 1 literal `{`, `{{{{{` (5 braces) → 2 literals `{{`
+
+**Choosing the right delimiter:**
+
+```avon
+# Few braces? Single-brace is fine
+@/simple.txt {"
+  Config: { value }
+"}
+
+# Many braces? Use double-brace to avoid escaping
+@/config.json {{"
+  {
+    "key": "{{ value }}",
+    "nested": {
+      "setting": true
+    }
+  }
+"}}
+
+# Very brace-heavy? Use triple-brace (rare)
+@/complex.txt {{{" 
+  {{ outer }} and {{{ interpolation }}} mixed
+"}}}
+```
 
 #### Practical Examples
 
-**Lua configuration** (single-brace template):
+**Lua configuration** (single-brace template with brace escaping):
 ```avon
+let dev = true in
 @/config.lua {"
-    local settings = {{
-      name = "app",
-      debug = { if dev then "true" else "false" }
-    }}
+local settings = {{
+  name = "app",
+  debug = { if dev then "true" else "false" }
+}}
 "}
 ```
 Produces:
 ```lua
 local settings = {
   name = "app",
-  debug = false
+  debug = true
 }
 ```
 
-**Nginx server block** (single-brace template):
+Note: In single-brace templates `{" "}`, literal braces must be escaped as `{{` and `}}`. The interpolation `{expr}` requires single braces.
+
+**Nginx server block** (single-brace template with brace escaping):
 ```avon
+let domain = "example.com" in
 @/nginx.conf {"
-    server {{
-      listen 80;
-      server_name { domain };
-    }}
+  server {{
+    listen 80;
+    server_name { domain };
+  }}
 "}
 ```
-
-**Terraform HCL** (double-brace template with `{{ }}` for interpolation):
-```avon
-@/main.tf {{"
-    resource "aws_instance" "web" {{
-      ami = "{{ ami_id }}"
-      tags = {{
-        Name = "{{ instance_name }}"
-      }}
-    }}
-"}}
+Produces:
+```nginx
+server {
+  listen 80;
+  server_name example.com;
+}
 ```
 
-See `examples/escape_hatch.av` for comprehensive single and double-brace demonstrations with both interpolation and literal brace sequences.
+Note: The outer `{{` and `}}` are literal braces, while the `{ domain }` is interpolation.
+
+**Terraform HCL** (double-brace template - cleaner, no escaping for output braces):
+
+With double braces `{{"..."}}`, single braces in the output are literal and don't need escaping. Only `{{ }}` is used for interpolation:
+
+```avon
+let ami_id = "ami-0c55b159cbfafe1f0" in
+let instance_name = "web-server" in
+@/main.tf {{"
+  resource "aws_instance" "web" {
+    ami = "{{ ami_id }}"
+    tags = {
+      Name = "{{ instance_name }}"
+    }
+  }
+"}}
+```
+Produces:
+```hcl
+resource "aws_instance" "web" {
+  ami = "ami-0c55b159cbfafe1f0"
+  tags = {
+    Name = "web-server"
+  }
+}
+```
+
+**Strategic choice: Which delimiter for your use case?**
+
+The key insight is choosing your template delimiter based on brace density in your output:
+
+| Use Case | Delimiter | Reason | Example |
+|----------|-----------|--------|---------|
+| Simple config, few braces | `{" "}` | No escaping needed | YAML, INI files |
+| Configuration language | `{{" "}}` | Few escapes needed | Lua, shell scripts |
+| Data formats | `{{" "}}` | Cleaner than escaping | JSON, HCL, TOML |
+| Code with many braces | `{{" "}}` or higher | Minimize escaping burden | Python, JavaScript, Go |
+| Extreme cases (rare) | `{{{" "}}}` or more | Only when absolutely necessary | Custom DSLs with brace syntax |
+
+**Examples by brace density:**
+
+```avon
+# YAML config (few braces) - single-brace is fine:
+@/app.yml {"
+app:
+  name: myapp
+  debug: { debug_mode }
+"}
+
+# JSON (lots of braces) - double-brace is much cleaner:
+@/config.json {{"
+{
+  "database": {
+    "host": "{{ db_host }}",
+    "port": {{ db_port }}
+  }
+}
+"}}
+
+# Python code (many braces for dict literals):
+@/config.py {{{
+def get_config():
+    return {
+        "database": "{{ db_name }}",
+        "settings": {{ "{} nested dict with triple brace" }}
+    }
+}}}
+```
+
+With this system, your templates stay readable even in brace-heavy contexts—you simply choose the delimiter that fits your content.
+
+See `examples/escape_hatch.av` for comprehensive demonstrations of all delimiter levels.
 
 ### Path Values
 Paths are first-class values that can be stored in variables, passed to functions, and interpolated with variables.
