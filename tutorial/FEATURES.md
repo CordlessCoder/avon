@@ -938,7 +938,7 @@ avon program.av --deploy    # Then generate files
 ```
 
 ### 3. Template Indentation for Readability
-Use indentation in templates — Avon's dedent removes it:
+Use indentation in templates — Avon's dedent removes it based on the first line's indentation:
 
 ```avon
 @/config.yml {"
@@ -947,6 +947,8 @@ Use indentation in templates — Avon's dedent removes it:
       port: 8080
 "}
 ```
+
+The 4 spaces in the first line become the baseline and are removed from all lines.
 
 ### 4. Partial Application for Reuse
 Create helper functions by partially applying builtins:

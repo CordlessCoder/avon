@@ -6,7 +6,7 @@ This guide describes the recommended formatting conventions for writing Avon cod
 
 1. **Readability First** — Code should be easy to read and understand
 2. **Consistent Formatting** — Follow these conventions across all Avon programs
-3. **Leverage Dedent** — Avon automatically removes common leading whitespace from templates
+3. **Leverage Dedent** — Avon automatically dedents templates based on the first line's indentation (baseline)
 
 ---
 
@@ -32,7 +32,7 @@ Hello, {name}!
 
 **Reason:** The template opening `{"` must appear on the same line as the path `@/file`. This is a syntax requirement in Avon.
 
-### ✅ Indent Template Content
+### ✅ Indent Template Content (Leverage Automatic Dedent)
 
 **Preferred:**
 ```avon
@@ -43,6 +43,18 @@ Hello, {name}!
   database:
     name: myapp
 "}
+```
+
+**Also Good:**
+```avon
+let config = "
+  server:
+    host: localhost
+    port: 8080
+  database:
+    name: myapp
+" in
+@/config.yml config
 ```
 
 **Avoid:**
@@ -56,72 +68,251 @@ database:
 "}
 ```
 
-**Reason:** Indenting template content improves readability in your Avon source code. Avon automatically dedents the output, so the generated file will have correct formatting.
+**Why this matters:** 
+- Avon's **automatic dedent** removes the common leading whitespace from all template lines
+- This means you can indent your template content in source code for readability without affecting the generated output
+- The generated file will have correct formatting: no extra leading spaces
+- This makes nested templates and indented Avon code much more readable
 
 ### Indentation Amount
 
-- **Avon code:** 2 spaces per indentation level
-- **Template content:** Match the target format's conventions
+Avon's automatic dedent means you have flexibility in how you indent source code—just maintain consistency within your project.
+
+- **Avon code:** 2 spaces per indentation level (recommended)
+- **Template content indentation in source:** Match your Avon code indentation
+- **Output format:** Match the target file's conventions
   - YAML: 2 spaces
   - JSON: 2 spaces
   - Code (Lua, JS, etc.): 2-4 spaces (match target style)
   - Configs: Match existing style
 
+**How Dedent Works:**
+1. Avon strips leading and trailing blank lines
+2. Finds the first line with non-whitespace content—that line's indentation becomes the **baseline**
+3. Removes that baseline amount of whitespace from every line
+4. Lines with less indentation than baseline are kept as-is
+5. Blank lines become empty
+
+This lets you indent your template in source code without padding your output.
+
 **Example:**
 ```avon
+# Avon code is indented 2 spaces inside the function
 let make_config = \service @/config/{service}.yml {"
-  # Avon uses 2-space indent
+  # This line has 2 spaces: it becomes the baseline
+  # Dedent will remove 2 spaces from every line
   service: {service}
   settings:
-    # YAML content uses 2-space indent (YAML standard)
+    # Relative indentation is preserved: this line still has 4 more spaces
     enabled: true
     timeout: 30
 "}
 ```
 
+**Output** (after dedent removes 2 common spaces—the baseline):
+```yaml
+service: auth
+settings:
+  enabled: true
+  timeout: 30
+```
+
+**Pro tip:** The first non-whitespace character determines your baseline. Indent as much as you need in your source code—dedent always uses the first content line's indentation as the reference point.
+
 ---
 
-## Escaping Braces in Templates
+## Leveraging Automatic Dedent
 
-When generating code or configs that contain literal `{` and `}` characters (like Nginx, Lua, HCL), use more curly braces around your templates.
+Avon's automatic dedent is a powerful feature that lets you write readable, well-indented source code without worrying about padding your generated output.
 
+### How It Works
+
+Avon finds the **first line with non-whitespace content** and uses its indentation level as the baseline. Every line has that baseline amount removed from its leading whitespace. Blank lines and lines with less indentation than the baseline are preserved as-is.
+
+### Key Dedent Behaviors
+
+1. **Baseline = first non-whitespace line's indentation**
+2. **Strips leading and trailing blank lines** automatically
+3. **Removes baseline indentation from all lines** (if they have it)
+4. **Preserves relative indentation** between lines
+5. **Works with mixed tabs and spaces** (though spaces are recommended)
+
+### Best Practices
+
+**✅ Indent for code clarity:**
 ```avon
-@/nginx.conf {{"
-  server {
-    listen 80;
-    server_name example.com;
-    location / {
-      proxy_pass http://localhost:8080;
+let make_yaml = \name @/config.yml {"
+  app:
+    name: {name}
+    database:
+      host: localhost
+      port: 5432
+"}
+```
+
+Output has no leading spaces:
+```yaml
+app:
+  name: myapp
+  database:
+    host: localhost
+    port: 5432
+```
+
+**✅ Deeply nested templates stay readable:**
+```avon
+let environments = ["dev", "staging"] in
+let make_deploy = \env {
+  let replicas = if env == "prod" then "3" else "1" in
+  @/deploy-{env}.yaml {"
+    apiVersion: apps/v1
+    kind: Deployment
+    spec:
+      replicas: {replicas}
+  "}
+} in
+map make_deploy environments
+```
+
+Even though the template is 4+ levels deep in the source, the generated files are properly formatted with zero leading spaces.
+
+**✅ Use blank lines for readability (they're automatically stripped):**
+```avon
+@/config.json {{"
+
+  {
+    "database": {
+      "host": "localhost"
     }
   }
+
 "}}
 ```
 
-**Output:**
-```
-server {
-  listen 80;
-  server_name example.com;
-  location / {
-    proxy_pass http://localhost:8080;
+Output (blank lines removed, properly formatted):
+```json
+{
+  "database": {
+    "host": "localhost"
   }
 }
 ```
 
-### Double-Brace Templates (For Heavy Brace Usage)
+**❌ Don't worry about indentation affecting output—it won't:**
+```avon
+# This produces identical output to the examples above
+@/config.yml {"
+                  server: localhost
+                  port: 8080
+"}
+```
 
-When you have many literal braces, use double-brace templates `{{"..."}}`:
+The first line `server: localhost` (with 18 spaces) becomes the baseline, so 18 spaces are removed from every line, producing zero leading spaces in the output.
+
+**✅ Practical example showing baseline selection:**
+```avon
+# 8-space indent in source, first line has 8 spaces = baseline
+@/file.txt {"
+        line1
+        line2
+            line3
+        line4
+"}
+```
+
+Output (8 spaces removed from every line):
+```
+line1
+line2
+    line3
+line4
+```
+
+Notice that `line3` keeps its extra 4-space indentation (12 - 8 = 4 spaces remain).
+
+---
+
+## Template Delimiter Strategy
+
+When generating code or configs that contain curly braces, Avon's variable-brace delimiter system lets you choose the right level for your content. The key is matching your template delimiter to your brace density.
+
+### Single-Brace Templates (Minimal Escaping Needed)
+
+Use `{" ... "}` when your output has **few or no literal braces**:
 
 ```avon
-@/terraform.tf {{"
-  resource "aws_instance" "web" {
-    ami = "{{ "ami_id" }}"
-    tags = {
-      Name = "{{ "hello" }}"
-    }
+@/app.yml {"
+app:
+  name: myapp
+  port: { port }
+"}
+```
+
+**Use for:** YAML, INI, plain text, simple configs
+- No escaping needed for most content
+- Interpolation uses `{ expr }`
+
+### Double-Brace Templates (Heavy Brace Usage)
+
+Use `{{"  ... "}}` when your output has **many literal braces** (JSON, HCL, Terraform, Lua, etc.):
+
+```avon
+@/nginx.conf {{"
+server {
+  listen 80;
+  server_name {{ domain }};
+  location / {
+    proxy_pass http://{{ upstream }};
   }
+}
 "}}
 ```
+
+**Advantages:**
+- Single braces `{` and `}` are literal (no escaping!)
+- Interpolation uses `{{ expr }}`
+- Much cleaner for brace-heavy formats
+
+**Use for:** JSON, HCL, Terraform, Lua, Nginx, shell scripts, Python code
+
+**Example: JSON Config**
+```avon
+let db_host = "localhost" in
+let db_port = 5432 in
+@/config.json {{"
+{
+  "database": {
+    "host": "{{ db_host }}",
+    "port": {{ db_port }}
+  }
+}
+"}}
+```
+
+**Example: Terraform**
+```avon
+let ami_id = "ami-123456" in
+@/main.tf {{"
+resource "aws_instance" "web" {
+  ami = "{{ ami_id }}"
+  tags = {
+    Name = "web-server"
+  }
+}
+"}}
+```
+
+### Decision Table: When to Use Each
+
+| Output Format | Delimiter | Reason |
+|-------------|-----------|--------|
+| YAML, INI files | `{" "}` | Few braces, no escaping |
+| Nginx, shell | `{{"  "}}` | Multiple blocks/braces |
+| JSON, HCL, Terraform | `{{"  "}}` | Many structured braces |
+| Python code | `{{"  "}}` | Dict literals and f-strings |
+| Extreme brace density | `{{{" "}}}` | Triple-brace (rare) |
+
+**Pro tip:** Choose the delimiter that keeps your template readable. More braces in the output? Use more braces in the delimiter!
 
 ---
 
@@ -318,13 +509,14 @@ flatmap (\env map (\svc make_k8s_manifest svc env) services) environments
 Before committing your Avon code, verify:
 
 - [ ] Templates start with `{"` on same line as path
-- [ ] Template content is indented for readability
-- [ ] Braces are escaped (`{{` `}}`) in configs with literal braces
+- [ ] Template content is indented for source code readability (dedent will clean output)
+- [ ] No manual indentation compensation needed—rely on automatic dedent
+- [ ] Braces are escaped (`{{` `}}`) only when using double-brace delimiter
 - [ ] Let bindings are on separate lines
 - [ ] Functions use `snake_case` naming
 - [ ] Complex logic is broken into named steps
 - [ ] Comments explain the "why", not the "what"
-- [ ] Code is formatted consistently
+- [ ] Code is formatted consistently (2-space indentation recommended)
 
 ---
 

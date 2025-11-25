@@ -17,7 +17,7 @@ This separation of concerns makes debugging **focused and efficient**.
 
 ## Why Simple Error Messages Work
 
-Error messages in Avon are deliberately minimal:
+Error messages in Avon are deliberately minimal, and they only name the failing functions/operators—they do not include file paths or line numbers:
 
 ```
 function_name: type_error

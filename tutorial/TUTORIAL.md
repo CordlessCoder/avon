@@ -123,7 +123,7 @@ When evaluation is complete, `avon` either:
 1. **Prints the result** (for `eval` command)
 2. **Materializes files** (for `--deploy` command)
 
-Error messages include helpful line numbers and context to guide you.
+Error messages stay concise, noting which function/operator failed but omitting line numbers or file references—rely on the debugger helpers for additional context.
 
 ---
 
@@ -606,7 +606,7 @@ Welcome to Avon.
 
 ### Indentation and Dedent
 
-Templates automatically strip common leading whitespace (dedent), so you can indent them nicely in your source:
+Templates automatically dedent based on the **first line with content** (baseline indentation). You can indent templates naturally in your source code without padding the output:
 
 ```avon
 let item = "widget" in
@@ -617,14 +617,14 @@ let item = "widget" in
 "}
 ```
 
-The leading tabs are removed, producing clean output:
+The first line (`item: {item}`) has 4 spaces—that becomes the baseline. Dedent removes 4 spaces from every line, producing clean output:
 ```
 item: widget
 description: "A useful widget"
 version: 1.0
 ```
 
-This is crucial for readability in your Avon code!
+Relative indentation is preserved, so nested structures work perfectly. This is crucial for readability in your Avon code!
 
 ### Interpolating Lists
 
@@ -667,13 +667,47 @@ hello
 "}
 ```
 
-### Template Escape Hatch: Literal Braces
+### Template Escape Hatch: Variable Brace Delimiters
 
-When generating code (Lua, HCL, Nginx, etc.), you often need literal `{` and `}` characters. Avon's escape hatch lets you output literal braces without interpolation.
+Avon templates use a **variable-brace delimiter system** that lets you choose how many opening braces to use. This powerful feature lets you generate code and config files cleanly, even when they contain many curly braces.
+
+#### Why Multiple Brace Levels?
+
+When generating code that uses braces (Lua, JSON, Terraform, HCL, Python, etc.), you need to distinguish:
+- **Literal braces in the output** (e.g., `{` for a Lua table or JSON object)
+- **Interpolation braces** (e.g., `{variable}` to substitute values)
+
+Avon solves this by letting you choose how many braces delimit the template:
+
+```avon
+{" ... "}        # Single-brace: interpolate with { }, escape literals with {{
+{{"  ... "}}     # Double-brace: interpolate with {{ }}, single braces are literal
+{{{" ... "}}}    # Triple-brace: interpolate with {{{ }}}, double braces are literal
+```
+
+This way, you choose the delimiter that matches your content's brace density, minimizing escaping.
+
+#### How the System Works
+
+**Interpolation** uses exactly the same number of braces as the template opener:
+
+```avon
+{"Value: { 1 + 2 }"}              # Single-brace interpolation: { }
+{{"Value: {{ 1 + 2 }}"}           # Double-brace interpolation: {{ }}
+{{{" Value: {{{ 1 + 2 }}} "}}}     # Triple-brace interpolation: {{{ }}}
+```
+
+**Literal braces** are created by using more braces than the delimiter requires. The output has (k - open_count) braces:
+
+| Delimiter | To output `{` | To output `{{` | To output `}` | To output `}}` |
+|-----------|---------------|----------------|---------------|----------------|
+| `{" "}` | `{{` | `{{{{` | `}}` | `}}}}` |
+| `{{"  "}}` | `{{{` | `{{{{` | `}}}` | `}}}}` |
+| `{{{" "}}}` | `{{{{` | `{{{{{` | `}}}}` | `}}}}}` |
 
 #### Single-Brace Templates
 
-The default template syntax uses single braces for interpolation:
+Use when your output has **few or no literal braces**:
 
 ```avon
 {"Value: { 1 + 2 }"}       # Output: Value: 3
@@ -681,69 +715,88 @@ The default template syntax uses single braces for interpolation:
 {"Literal close: }}"}      # Output: Literal close: }
 ```
 
-**Rule:** Inside a single-brace template, a run of k consecutive braces outputs (k - 1) literal braces:
-- `{{` → `{` (one literal)
-- `{{{{` → `{{{` (three literals)
-- `}}` → `}` (one literal)
-- `}}}}` → `}}}` (three literals)
-
-#### Example: Generating Lua Code
-
+**Example: Simple YAML config**
 ```avon
-@/config.lua {"
-    local config = {{
-      name = "myapp",
-      debug = true
-    }}
-    
-    function init()
-      return config
-    end
+@/app.yml {"
+app:
+  name: myapp
+  debug: { debug_mode }
 "}
 ```
 
-Output:
-```lua
+#### Double-Brace Templates
+
+Use when your output has **many literal braces** (JSON, HCL, Terraform, Lua dicts, etc.):
+
+```avon
+@/config.lua {{"
 local config = {
+  name = "{{ app_name }}",
+  debug = {{ if dev then "true" else "false" }}
+}
+"}}
+```
+
+**Rule:** In double-brace templates, single braces are literal (no escaping needed):
+
+```avon
+@/output.json {{"
+{
+  "app": "{{ app_name }}",
+  "nested": {
+    "value": {{ port }}
+  }
+}
+"}}
+```
+
+#### Example: Generating Lua Code
+
+With single-brace, you must escape braces:
+
+```avon
+@/config.lua {"
+local config = {{
   name = "myapp",
+  debug = true
+}}
+
+function init()
+  return config
+end
+"}
+```
+
+With double-brace, braces are literal:
+
+```avon
+@/config.lua {{"
+local config = {
+  name = "{{ app_name }}",
   debug = true
 }
 
 function init()
   return config
 end
-```
-
-#### Double-Brace Templates
-
-For cases requiring many literal braces, use double-brace templates:
-
-```avon
-@/output.txt {{"
-    Two-brace template: {{ 10 + 20 }}
-    Literal open: {{{
-    Literal pair: {{{{
 "}}
 ```
 
-**Rule:** Inside a double-brace template (`{{" ... "}}`), interpolation requires exactly two braces, and literal braces work by (k - 2):
-- `{{{` → `{` (one literal, 3 - 2)
-- `{{{{` → `{{` (two literals, 4 - 2)
-- `}}}` → `}` (one literal)
-- `}}}}` → `}}` (two literals)
+#### Strategic Choice: Brace Density
 
-#### Why Multiple Brace Levels?
+Choose your template delimiter based on how many braces are in your output:
 
-The escape hatch is crucial for generating:
-- **Lua configs:** Tables use `{ ... }`
-- **Nginx configs:** Blocks use `{ ... }`
-- **Terraform:** Maps use `{ ... }`
-- **HCL:** Variable references use `${ ... }`
-- **JSON:** Objects use `{ ... }`
+| Output Type | Delimiter | Reason |
+|-------------|-----------|--------|
+| YAML, INI, simple configs | `{" "}` | Few braces, no escaping needed |
+| Lua, shell scripts | `{" "}` | Occasional braces, light escaping |
+| JSON, HCL, Terraform | `{{"  "}}` | Many braces, double-brace is cleaner |
+| Python code | `{{"  "}}` or higher | Dict literals and f-strings require clean syntax |
+| Extreme cases | `{{{" "}}}` | Custom DSLs with heavy brace syntax (rare) |
 
-Without the escape hatch, every `{` would trigger interpolation. With it, you can generate any brace-heavy syntax cleanly.
+The key insight: **choose the delimiter that lets your template stay readable**.
 
-See `examples/escape_hatch.av` for a comprehensive demo of both single and double-brace templates.
+See `examples/escape_hatch.av` for comprehensive demonstrations of all delimiter levels.
 
 ### Complex Interpolations
 
@@ -1008,8 +1061,8 @@ avon --git-eval pyrotek45/avon/examples/string_functions.av
 
 ## Error handling and debugging
 
-- Runtime errors produce `EvalError` with message, and `pretty` printing attempts to show the source line and a caret indicating the approximate location. If you see an error, look at the program line printed and surrounding source for the likely cause.
-- Lexing / parsing errors will also include best-effort line numbers.
+- Runtime errors produce `EvalError` with a concise message that names the failing function/operator; they do not include source line or caret information, so rely on `trace`, `debug`, or assertions to surface the relevant context.
+- Lexing / parsing errors remain minimal as well and do not report line numbers—fix the syntax by examining the surrounding code manually or with editor assistance.
 - If deployment panics during file materialization, `avon` catches the panic and reports `Deployment panicked` rather than aborting your entire process. This protects you from half-written states. Use `--force` and test locally.
 
 ---
