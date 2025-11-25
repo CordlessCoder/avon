@@ -1,0 +1,41 @@
+# Demonstrating the trace pattern for debugging
+# Shows how to properly use trace with let bindings
+
+# Pattern: Tracing inputs and outputs of a function
+let add_and_double = \x
+  let _ = trace "input" x in
+  let doubled = x * 2 in
+  let _ = trace "after doubling" doubled in
+  let added = doubled + 10 in
+  let _ = trace "final result" added in
+  added
+in
+
+# Example: Processing a list through transformations
+let process_numbers = \numbers
+  let _ = trace "input list" numbers in
+  let doubled = map (\x x * 2) numbers in
+  let _ = trace "after map" doubled in
+  let filtered = filter (\x x > 10) doubled in
+  let _ = trace "after filter" filtered in
+  filtered
+in
+
+# Run the examples
+let result1 = add_and_double 5 in
+let result2 = process_numbers [2, 3, 4, 5, 6] in
+
+{"
+Trace Pattern Demo
+==================
+
+add_and_double 5:
+  Result: {result1}
+  
+  (Check stderr for trace output showing each step)
+
+process_numbers [2, 3, 4, 5, 6]:
+  Result: {format_list result2 ", "}
+  
+  (Check stderr for trace output showing transformations)
+"}

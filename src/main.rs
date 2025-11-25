@@ -890,6 +890,68 @@ mod tests {
         assert!(r.is_err(), "expected error when subtracting strings");
     }
 
+    #[test]
+    fn test_template_concatenation() {
+        // Test: template + template produces combined template
+        let prog = r#"let t1 = {"Hello "} in let t2 = {"World!"} in t1 + t2"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "Hello World!");
+
+        // Test: template with interpolation + template
+        let prog2 = r#"let name = "Alice" in let greeting = {"Hello, {name}"} in let punct = {"!"} in greeting + punct"#
+            .to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        assert_eq!(v2.to_string(&prog2), "Hello, Alice!");
+
+        // Test: empty template + template
+        let prog3 = r#"let t1 = {""} in let t2 = {"content"} in t1 + t2"#.to_string();
+        let tokens3 = tokenize(prog3.clone()).expect("tokenize");
+        let ast3 = parse(tokens3);
+        let mut symbols3 = initial_builtins();
+        let v3 = eval(ast3.program, &mut symbols3, &prog3).expect("eval");
+        assert_eq!(v3.to_string(&prog3), "content");
+    }
+
+    #[test]
+    fn test_path_concatenation() {
+        // Test: path + path produces combined path
+        let prog = r#"let p1 = @/home/user in let p2 = @/projects in p1 + p2"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        // Should concatenate with / separator
+        assert!(v.to_string(&prog).contains("/home/user") && v.to_string(&prog).contains("/projects"));
+
+        // Test: path with interpolation + path
+        let prog2 = r#"let dir = "home" in let base = @/{dir} in let sub = @/config in base + sub"#
+            .to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        let result = v2.to_string(&prog2);
+        assert!(result.contains("home"));
+        assert!(result.contains("config"));
+
+        // Test: multiple path concatenations
+        let prog3 = r#"let p1 = @/a in let p2 = @/b in let p3 = @/c in p1 + p2 + p3"#.to_string();
+        let tokens3 = tokenize(prog3.clone()).expect("tokenize");
+        let ast3 = parse(tokens3);
+        let mut symbols3 = initial_builtins();
+        let v3 = eval(ast3.program, &mut symbols3, &prog3).expect("eval");
+        let result = v3.to_string(&prog3);
+        assert!(result.contains("/a"));
+        assert!(result.contains("/b"));
+        assert!(result.contains("/c"));
+    }
+
     // NEW COMPREHENSIVE TESTS FOR BRACES AND TEMPLATES
 
     #[test]

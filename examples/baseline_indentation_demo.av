@@ -1,0 +1,116 @@
+# Baseline Indentation in Templates
+# Demonstrates how the first non-whitespace character sets the baseline for dedenting
+
+# The key idea: The column position of the first non-whitespace character 
+# becomes the "baseline". All other lines are dedented relative to this baseline.
+
+# ============================================================
+# Example 1: Root level template (baseline = 0)
+# ============================================================
+let root_level = {"
+This template starts at column 0
+No indentation to remove
+Simple and clean
+"}
+in
+
+# ============================================================
+# Example 2: Indented function (baseline = 2)
+# ============================================================
+let config_generator = \app_name \version
+  {"
+  [app]
+  name = {app_name}
+  version = {version}
+  
+  [features]
+  enabled = true
+  "}
+in
+
+# ============================================================
+# Example 3: Deeply indented (baseline = 4)
+# ============================================================
+let html_generator = \title \content
+  {"
+  <!DOCTYPE html>
+  <html>
+    <head><title>{title}</title></head>
+    <body>
+      <h1>{title}</h1>
+      <p>{content}</p>
+    </body>
+  </html>
+  "}
+in
+
+# ============================================================
+# Example 4: Code generation (preserves relative indentation)
+# ============================================================
+let python_function = \name
+  {"
+  def {name}():
+    \"\"\"Generated function.\"\"\"
+    print('Hello')
+    if True:
+      nested()
+    return True
+  "}
+in
+
+# ============================================================
+# Example 5: Template with interpolation
+# ============================================================
+let config_file = \name \enabled
+  {"
+  [section]
+  name = {name}
+  enabled = {if enabled then "yes" else "no"}
+  port = 8080
+  "}
+in
+
+# ============================================================
+# Run examples
+# ============================================================
+
+let r1 = root_level in
+let r2 = config_generator "MyApp" "1.0.0" in
+let r3 = html_generator "Test" "Content" in
+let r4 = python_function "hello" in
+let r5 = config_file "api" true in
+
+{"
+================================================================================
+                   BASELINE INDENTATION DEMONSTRATION
+================================================================================
+
+ROOT LEVEL (baseline = column 0):
+{r1}
+
+INDENTED BY 2 SPACES (baseline = column 2):
+{r2}
+
+INDENTED BY 4 SPACES (baseline = column 4):
+{r3}
+
+PYTHON CODE (preserves internal indentation):
+{r4}
+
+WITH INTERPOLATION:
+{r5}
+
+================================================================================
+KEY INSIGHT:
+
+The first non-whitespace character of the template content determines
+the baseline indentation level. All lines are dedented by this amount.
+
+✓ Works with interpolation
+✓ Preserves internal code structure
+✓ No new syntax required
+✓ Intuitive and natural
+
+This means you can indent your templates to match your code structure,
+and the output will be properly dedented automatically!
+================================================================================"}

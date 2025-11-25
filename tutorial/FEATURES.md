@@ -105,11 +105,10 @@ Count: {length items}
 
 ```avon
 # Indented by 2 spaces - first content at column 2
-let config = \name
-  {"
+let config = \name {"
   Name: {name}
   Port: 8080
-  "}
+"}
 in
 
 # Output has no leading indent, internal structure preserved:
@@ -270,7 +269,6 @@ When deployed, this writes the template content to the specified file.
 | `pad_left` | 3 | `pad_left "7" 3 "0"` | `"007"` |
 | `pad_right` | 3 | `pad_right "hi" 5 " "` | `"hi   "` |
 | `indent` | 2 | `indent "code" 4` | `"    code"` |
-| `str` | 1 | `str 42` | `"42"` |
 
 **Examples:** `examples/string_functions.av`, `examples/split_join.av`, `examples/new_functions_demo.av`
 
@@ -301,19 +299,17 @@ When deployed, this writes the template content to the specified file.
 
 ### Map/Dictionary Operations
 
-Avon provides two dictionary representations:
-1. **Dict Type** (modern): `{key: value, ...}` - First-class hash map with dot notation
-2. **List of Pairs** (classic): `[["key", "value"], ...]` - For backward compatibility
+Avon provides a first-class Dict type for structured data with key-value pairs:
 
 | Function | Arity | Purpose | Example |
 |----------|-------|---------|---------|
-| `get` | 2 | Get value by key (dict or pairs) | `get {name: "Alice"} "name"` → `"Alice"` |
-| `set` | 3 | Update or add key (dict or pairs) | `set {a: 1} "b" 2` → `{a: 1, b: 2}` |
-| `keys` | 1 | Extract keys (dict or pairs) | `keys {a: 1}` → `["a"]` |
-| `values` | 1 | Extract values (dict or pairs) | `values {a: 1}` → `[1]` |
-| `has_key` | 2 | Check if key exists (dict or pairs) | `has_key {a: 1} "a"` → `true` |
+| `get` | 2 | Get value by key | `get {name: "Alice"} "name"` → `"Alice"` |
+| `set` | 3 | Update or add key | `set {a: 1} "b" 2` → `{a: 1, b: 2}` |
+| `keys` | 1 | Extract all keys | `keys {a: 1, b: 2}` → `["a", "b"]` |
+| `values` | 1 | Extract all values | `values {a: 1, b: 2}` → `[1, 2]` |
+| `has_key` | 2 | Check if key exists | `has_key {a: 1} "a"` → `true` |
 
-**Modern Dict Syntax:**  
+**Dict Syntax:**  
 Dictionaries use curly braces with colon notation:
 
 ```avon
@@ -337,15 +333,11 @@ JSON objects are automatically parsed as dicts:
 let data = json_parse "config.json" in
 let app_name = data.app in         # "myapp" (dot notation)
 let version = get data "version" in # "1.0" (get function)
+let all_keys = keys data in        # ["app", "version", "debug"]
+has_key data "version"              # true
 ```
 
 **Examples:** `examples/dict_operations.av`, `examples/json_map_demo.av`
-
-let all_keys = keys data in              # ["app", "version", "debug"]
-has_key data "version"                   # true
-```
-
-**Examples:** `examples/map_operations.av`, `examples/json_map_demo.av`
 
 ### �📁 File & Filesystem
 
@@ -586,7 +578,36 @@ center "Title" 20                  # "       Title        "
 [1, 2] + [3, 4]            # [1, 2, 3, 4]
 ```
 
-### Comparison
+### Template Concatenation
+Templates can be combined with the `+` operator:
+```avon
+let greeting = {"Hello "} in
+let name_part = {"World!"} in
+greeting + name_part       # "Hello World!"
+
+# With interpolation
+let name = "Alice" in
+let t1 = {"Hello, {name}"} in
+let t2 = {"!"} in
+t1 + t2                    # "Hello, Alice!"
+```
+
+### Path Concatenation
+Paths can be combined with the `+` operator to join path segments:
+```avon
+let base = @/home/user in
+let subdir = @/projects in
+base + subdir              # "/home/user//projects" (/ separator added)
+
+# With interpolation
+let env = "prod" in
+let app = "myapp" in
+let config_path = @/etc/{env} in
+let app_config = @/{app}.conf in
+config_path + app_config   # "/etc/prod//myapp.conf"
+```
+
+**Examples:** `examples/template_path_concat.av`
 - `==` Equal
 - `!=` Not equal
 - `>` Greater than

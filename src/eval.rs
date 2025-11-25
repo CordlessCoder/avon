@@ -637,6 +637,26 @@ pub fn eval(
                         la.extend(lb.into_iter());
                         Ok(Value::List(la))
                     }
+                    (Value::Template(lchunks, lsyms), Value::Template(rchunks, rsyms)) => {
+                        // Concatenate template chunks
+                        let mut combined_chunks = lchunks.clone();
+                        combined_chunks.extend(rchunks.clone());
+                        // Merge symbol tables
+                        let mut combined_symbols = lsyms.clone();
+                        combined_symbols.extend(rsyms.clone());
+                        Ok(Value::Template(combined_chunks, combined_symbols))
+                    }
+                    (Value::Path(lchunks, lsyms), Value::Path(rchunks, rsyms)) => {
+                        // Concatenate path chunks with a "/" separator
+                        let mut combined_chunks = lchunks.clone();
+                        // Add a "/" as a string chunk between the two paths
+                        combined_chunks.push(Chunk::String("/".to_string()));
+                        combined_chunks.extend(rchunks.clone());
+                        // Merge symbol tables
+                        let mut combined_symbols = lsyms.clone();
+                        combined_symbols.extend(rsyms.clone());
+                        Ok(Value::Path(combined_chunks, combined_symbols))
+                    }
                     (a, b) => {
                         let l_type = match a {
                             Value::Number(_) => "Number",
@@ -644,6 +664,8 @@ pub fn eval(
                             Value::List(_) => "List",
                             Value::Bool(_) => "Bool",
                             Value::Function { .. } => "Function",
+                            Value::Template(_, _) => "Template",
+                            Value::Path(_, _) => "Path",
                             _ => "unknown type",
                         };
                         let r_type = match b {
@@ -652,6 +674,8 @@ pub fn eval(
                             Value::List(_) => "List",
                             Value::Bool(_) => "Bool",
                             Value::Function { .. } => "Function",
+                            Value::Template(_, _) => "Template",
+                            Value::Path(_, _) => "Path",
                             _ => "unknown type",
                         };
 

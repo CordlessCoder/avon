@@ -202,6 +202,36 @@ a <= b                     # Less or equal
 - `"hello" + " world"` → `"hello world"` (strings concatenate)
 - `[1,2] + [3,4]` → `[1,2,3,4]` (lists concatenate)
 - `5 + 3` → `8` (numbers add)
+- `{"Hello "} + {"World!"}` → `"Hello World!"` (templates concatenate)
+- `@/home/user + @/projects` → `/home/user//projects` (paths join with `/` separator)
+
+**Template Concatenation:**
+Templates can be combined with `+` to merge content:
+```avon
+let greeting = {"Hello, "} in
+let name = "Alice" in
+let punct = {"!"} in
+greeting + {"World"} + punct     # "Hello, World!"
+
+# With interpolation
+let t1 = {"User: {name}"} in
+let t2 = {" (verified)"} in
+t1 + t2                           # "User: Alice (verified)"
+```
+
+**Path Concatenation:**
+Paths can be combined with `+` to join path segments:
+```avon
+let base = @/home in
+let user = @/alice in
+base + user                       # "/home//alice"
+
+# Practical example
+let env = "prod" in
+let config_dir = @/etc/{env} in
+let app_config = @/app.conf in
+config_dir + app_config           # "/etc/prod//app.conf"
+```
 
 #### Conditionals
 
@@ -836,7 +866,6 @@ Avon comes with a toolkit of built-in functions for common tasks. All builtins a
 | `pad_left s width char` | `pad_left "7" 3 "0"` | `"007"` |
 | `pad_right s width char` | `pad_right "hi" 5 " "` | `"hi   "` |
 | `indent s spaces` | `indent "code" 4` | `"    code"` |
-| `str val` | `str 42` | `"42"` |
 
 ### List Operations
 

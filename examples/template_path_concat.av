@@ -1,0 +1,20 @@
+# Template and Path Concatenation Test
+
+# Test template concatenation
+let t1 = {"Hello "} in
+let t2 = {"World!"} in
+let result_templates = t1 + t2 in
+
+# Test path concatenation
+let p1 = @/home/user in
+let p2 = @/projects/avon in
+let combined_path = p1 + p2 in
+
+# Test with interpolation in templates
+let name = "Alice" in
+let greeting = {"Hello, {name}"} in
+let punctuation = {"!"} in
+let full_greeting = greeting + punctuation in
+
+# Output: concatenated template, concatenated path, and greeting with interpolation
+[result_templates, combined_path, full_greeting]
