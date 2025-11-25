@@ -1,0 +1,39 @@
+# JSON Parsing with Map Support
+# Demonstrates that JSON objects are parsed as list of [key, value] pairs
+
+let data = json_parse "examples/test_config.json" in
+
+# Access top-level keys
+let app_name = get data "name" in
+let version = get data "version" in
+let author = get data "author" in
+
+# Check what keys are available
+let available_keys = keys data in
+
+# Access nested object (config)
+let config = get data "config" in
+let port = get config "port" in
+let debug_flag = get config "debug" in
+
+# Access array
+let deps = get data "dependencies" in
+
+concat
+  "JSON Parsing Demo\n"
+  (concat "=================\n\n" 
+  (concat "App: " 
+  (concat (to_string app_name)
+  (concat "\nVersion: "
+  (concat (to_string version)
+  (concat "\nAuthor: "
+  (concat (to_string author)
+  (concat "\n\nAvailable keys: "
+  (concat (to_string available_keys)
+  (concat "\n\nPort: "
+  (concat (to_string port)
+  (concat "\nDebug: "
+  (concat (to_string debug_flag)
+  (concat "\n\nDependencies: "
+  (concat (to_string deps)
+  "\n\nMap operations work on parsed JSON!"))))))))))))))))

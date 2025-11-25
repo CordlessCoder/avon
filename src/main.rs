@@ -487,7 +487,7 @@ mod tests {
             other => panic!("expected list from json array, got {:?}", other),
         }
 
-        // json_parse object (currently stringified)
+        // json_parse object (now returns list of [key, value] pairs)
         let json_obj_path = dir.join("avon_test_json_obj.json");
         let mut jo = fs::File::create(&json_obj_path).expect("create json obj");
         write!(jo, "{}", r#"{"k": "v"}"#).expect("write json obj");
@@ -497,8 +497,11 @@ mod tests {
         let mut symbols = initial_builtins();
         let v = eval(ast.program, &mut symbols, &progo).expect("eval");
         match v {
-            Value::String(s) => assert!(s.contains("k")),
-            other => panic!("expected string from json object, got {:?}", other),
+            Value::List(items) => {
+                // Should be list of pairs like [["k", "v"]]
+                assert_eq!(items.len(), 1);
+            }
+            other => panic!("expected list of pairs from json object, got {:?}", other),
         }
 
         // import: create a small file that evaluates to a number
@@ -1447,6 +1450,154 @@ mod tests {
             Value::Number(Number::Int(n)) => assert_eq!(n, 5),
             other => panic!("expected int, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_map_get() {
+        // Test get with existing key
+        let prog = r#"get [["name", "Alice"], ["age", "30"]] "name""#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "Alice");
+
+        // Test get with missing key returns None
+        let prog2 = r#"get [["name", "Alice"]] "missing""#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        assert_eq!(v2.to_string(&prog2), "None");
+    }
+
+    #[test]
+    fn test_map_set() {
+        // Test set updates existing key
+        let prog = r#"let m = set [["name", "Alice"], ["age", "30"]] "name" "Bob" in get m "name""#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "Bob");
+
+        // Test set adds new key
+        let prog2 = r#"let m = set [["name", "Alice"]] "age" "30" in length m"#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        match v2 {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 2),
+            other => panic!("expected int 2, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_map_keys() {
+        let prog = r#"keys [["name", "Alice"], ["age", "30"], ["city", "NYC"]]"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::List(items) => {
+                assert_eq!(items.len(), 3);
+                assert_eq!(items[0].to_string(&prog), "name");
+                assert_eq!(items[1].to_string(&prog), "age");
+                assert_eq!(items[2].to_string(&prog), "city");
+            }
+            other => panic!("expected list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_map_values() {
+        let prog = r#"values [["name", "Alice"], ["age", "30"], ["city", "NYC"]]"#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::List(items) => {
+                assert_eq!(items.len(), 3);
+                assert_eq!(items[0].to_string(&prog), "Alice");
+                assert_eq!(items[1].to_string(&prog), "30");
+                assert_eq!(items[2].to_string(&prog), "NYC");
+            }
+            other => panic!("expected list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_map_has_key() {
+        // Test has_key with existing key
+        let prog = r#"has_key [["name", "Alice"], ["age", "30"]] "name""#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b),
+            other => panic!("expected bool true, got {:?}", other),
+        }
+
+        // Test has_key with missing key
+        let prog2 = r#"has_key [["name", "Alice"]] "missing""#.to_string();
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        match v2 {
+            Value::Bool(b) => assert!(!b),
+            other => panic!("expected bool false, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_json_parse_object_returns_map() {
+        use std::io::Write;
+        let dir = std::env::temp_dir();
+        let json_path = dir.join("avon_test_json_map.json");
+        
+        // Create a JSON object
+        let mut jf = fs::File::create(&json_path).expect("create json");
+        write!(jf, r#"{{"name": "Alice", "age": 30}}"#).expect("write json");
+        drop(jf);
+
+        // Test that JSON objects are parsed as list of pairs and can be queried with get
+        let prog = format!("let data = json_parse \"{}\" in get data \"name\"", json_path.to_string_lossy());
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "Alice");
+
+        // Test that keys can be extracted
+        let prog2 = format!("let data = json_parse \"{}\" in keys data", json_path.to_string_lossy());
+        let tokens2 = tokenize(prog2.clone()).expect("tokenize");
+        let ast2 = parse(tokens2);
+        let mut symbols2 = initial_builtins();
+        let v2 = eval(ast2.program, &mut symbols2, &prog2).expect("eval");
+        match v2 {
+            Value::List(items) => {
+                assert_eq!(items.len(), 2);
+            }
+            other => panic!("expected list of keys, got {:?}", other),
+        }
+        
+        let _ = fs::remove_file(json_path);
+    }
+
+    #[test]
+    fn test_map_operations_chaining() {
+        // Test chaining map operations
+        let prog = r#"let m = [["a", "1"], ["b", "2"]] in let m2 = set m "c" "3" in let m3 = set m2 "a" "10" in get m3 "a""#.to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "10");
     }
 
     #[test]

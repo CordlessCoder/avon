@@ -1,0 +1,10 @@
+{
+  "name": "test-app",
+  "version": "1.2.3",
+  "author": "Alice",
+  "config": {
+    "port": 3000,
+    "debug": true
+  },
+  "dependencies": ["express", "lodash", "axios"]
+}

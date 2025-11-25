@@ -185,6 +185,28 @@ pub fn initial_builtins() -> HashMap<String, Value> {
         Value::Builtin("flatten".to_string(), Vec::new()),
     );
 
+    // Map/Dictionary operations (using list of pairs)
+    m.insert(
+        "get".to_string(),
+        Value::Builtin("get".to_string(), Vec::new()),
+    );
+    m.insert(
+        "set".to_string(),
+        Value::Builtin("set".to_string(), Vec::new()),
+    );
+    m.insert(
+        "keys".to_string(),
+        Value::Builtin("keys".to_string(), Vec::new()),
+    );
+    m.insert(
+        "values".to_string(),
+        Value::Builtin("values".to_string(), Vec::new()),
+    );
+    m.insert(
+        "has_key".to_string(),
+        Value::Builtin("has_key".to_string(), Vec::new()),
+    );
+
     // HTML helpers
     m.insert(
         "html_escape".to_string(),
@@ -670,6 +692,11 @@ pub fn apply_function(func: &Value, arg: Value, source: &str) -> Result<Value, E
                 "format_float" => 2,
                 "flatmap" => 2,
                 "flatten" => 1,
+                "get" => 2,
+                "set" => 3,
+                "keys" => 1,
+                "values" => 1,
+                "has_key" => 2,
                 _ => 1,
             };
 
@@ -1020,11 +1047,14 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
                             Value::List(a.iter().map(|it| conv(it)).collect())
                         }
                         serde_json::Value::Object(o) => {
-                            let mut m = std::collections::HashMap::new();
-                            for (k, v) in o.iter() {
-                                m.insert(k.clone(), conv(v));
-                            }
-                            Value::String(serde_json::to_string(o).unwrap_or_default())
+                            // Convert JSON object to list of [key, value] pairs
+                            let pairs: Vec<Value> = o.iter()
+                                .map(|(k, v)| Value::List(vec![
+                                    Value::String(k.clone()),
+                                    conv(v)
+                                ]))
+                                .collect();
+                            Value::List(pairs)
                         }
                     }
                 }
@@ -1512,6 +1542,161 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
                 Err(EvalError::type_mismatch(
                     "list",
                     list.to_string(source),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "get" => {
+            // get :: [[String, a]] -> String -> a | None
+            // Usage: get [["name", "alice"], ["age", "30"]] "name" => "alice"
+            let map = &args[0];
+            let key = &args[1];
+            if let (Value::List(pairs), Value::String(k)) = (map, key) {
+                for pair in pairs {
+                    if let Value::List(kv) = pair {
+                        if kv.len() >= 2 {
+                            if let Value::String(pair_key) = &kv[0] {
+                                if pair_key == k {
+                                    return Ok(kv[1].clone());
+                                }
+                            }
+                        }
+                    }
+                }
+                // Key not found - return None
+                Ok(Value::None)
+            } else {
+                Err(EvalError::type_mismatch(
+                    "list of pairs and string key",
+                    format!("{}, {}", map.to_string(source), key.to_string(source)),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "set" => {
+            // set :: [[String, a]] -> String -> a -> [[String, a]]
+            // Usage: set [["name", "alice"]] "age" "30" => [["name", "alice"], ["age", "30"]]
+            let map = &args[0];
+            let key = &args[1];
+            let value = &args[2];
+            if let (Value::List(pairs), Value::String(k)) = (map, key) {
+                let mut new_pairs = Vec::new();
+                let mut found = false;
+                
+                // Update existing key or keep pairs
+                for pair in pairs {
+                    if let Value::List(kv) = pair {
+                        if kv.len() >= 2 {
+                            if let Value::String(pair_key) = &kv[0] {
+                                if pair_key == k {
+                                    // Replace the value for this key
+                                    new_pairs.push(Value::List(vec![
+                                        Value::String(k.clone()),
+                                        value.clone(),
+                                    ]));
+                                    found = true;
+                                } else {
+                                    // Keep unchanged
+                                    new_pairs.push(pair.clone());
+                                }
+                            } else {
+                                new_pairs.push(pair.clone());
+                            }
+                        } else {
+                            new_pairs.push(pair.clone());
+                        }
+                    } else {
+                        new_pairs.push(pair.clone());
+                    }
+                }
+                
+                // If key wasn't found, add it
+                if !found {
+                    new_pairs.push(Value::List(vec![
+                        Value::String(k.clone()),
+                        value.clone(),
+                    ]));
+                }
+                
+                Ok(Value::List(new_pairs))
+            } else {
+                Err(EvalError::type_mismatch(
+                    "list of pairs, string key, and value",
+                    format!("{}, {}, {}", 
+                        map.to_string(source), 
+                        key.to_string(source),
+                        value.to_string(source)
+                    ),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "keys" => {
+            // keys :: [[String, a]] -> [String]
+            // Usage: keys [["name", "alice"], ["age", "30"]] => ["name", "age"]
+            let map = &args[0];
+            if let Value::List(pairs) = map {
+                let mut keys = Vec::new();
+                for pair in pairs {
+                    if let Value::List(kv) = pair {
+                        if !kv.is_empty() {
+                            keys.push(kv[0].clone());
+                        }
+                    }
+                }
+                Ok(Value::List(keys))
+            } else {
+                Err(EvalError::type_mismatch(
+                    "list of pairs",
+                    map.to_string(source),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "values" => {
+            // values :: [[String, a]] -> [a]
+            // Usage: values [["name", "alice"], ["age", "30"]] => ["alice", "30"]
+            let map = &args[0];
+            if let Value::List(pairs) = map {
+                let mut vals = Vec::new();
+                for pair in pairs {
+                    if let Value::List(kv) = pair {
+                        if kv.len() >= 2 {
+                            vals.push(kv[1].clone());
+                        }
+                    }
+                }
+                Ok(Value::List(vals))
+            } else {
+                Err(EvalError::type_mismatch(
+                    "list of pairs",
+                    map.to_string(source),
+                    find_line_for_symbol("", source),
+                ))
+            }
+        }
+        "has_key" => {
+            // has_key :: [[String, a]] -> String -> Bool
+            // Usage: has_key [["name", "alice"]] "name" => true
+            let map = &args[0];
+            let key = &args[1];
+            if let (Value::List(pairs), Value::String(k)) = (map, key) {
+                for pair in pairs {
+                    if let Value::List(kv) = pair {
+                        if !kv.is_empty() {
+                            if let Value::String(pair_key) = &kv[0] {
+                                if pair_key == k {
+                                    return Ok(Value::Bool(true));
+                                }
+                            }
+                        }
+                    }
+                }
+                Ok(Value::Bool(false))
+            } else {
+                Err(EvalError::type_mismatch(
+                    "list of pairs and string key",
+                    format!("{}, {}", map.to_string(source), key.to_string(source)),
                     find_line_for_symbol("", source),
                 ))
             }

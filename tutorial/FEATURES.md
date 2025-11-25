@@ -281,7 +281,55 @@ When deployed, this writes the template content to the specified file.
 
 **Examples:** `examples/map_example.av`, `examples/filter_example.av`, `examples/fold_example.av`, `examples/map_filter_fold.av`
 
-### 📁 File & Filesystem
+### �️ Map/Dictionary Operations
+
+Avon provides map/dictionary functionality using lists of key-value pairs. JSON objects are automatically parsed into this format.
+
+| Function | Arity | Purpose | Example |
+|----------|-------|---------|---------|
+| `get` | 2 | Get value by key | `get map "name"` → `"Alice"` or `None` |
+| `set` | 3 | Update or add key-value | `set map "age" "30"` → new map |
+| `keys` | 1 | Extract all keys | `keys map` → `["name", "age"]` |
+| `values` | 1 | Extract all values | `values map` → `["Alice", "30"]` |
+| `has_key` | 2 | Check if key exists | `has_key map "name"` → `true` |
+
+**Map Representation:**  
+Maps are lists of `[key, value]` pairs: `[["name", "Alice"], ["age", "30"]]`
+
+**Examples:**
+
+```avon
+# Create a map manually
+let config = [["host", "localhost"], ["port", "8080"]] in
+
+# Get a value
+let host = get config "host" in  # "localhost"
+let missing = get config "db" in  # None
+
+# Update or add values
+let updated = set config "port" "9000" in
+let with_db = set updated "db" "postgres" in
+
+# Query the map
+let all_keys = keys with_db in      # ["host", "port", "db"]
+let all_values = values with_db in  # ["localhost", "9000", "postgres"]
+has_key with_db "host"              # true
+```
+
+**JSON Integration:**  
+JSON objects are automatically parsed as maps:
+
+```avon
+# config.json: {"app": "myapp", "version": "1.0", "debug": true}
+let data = json_parse "config.json" in
+let app_name = get data "app" in         # "myapp"
+let all_keys = keys data in              # ["app", "version", "debug"]
+has_key data "version"                   # true
+```
+
+**Examples:** `examples/map_operations.av`, `examples/json_map_demo.av`
+
+### �📁 File & Filesystem
 
 | Function | Arity | Purpose |
 |----------|-------|---------|

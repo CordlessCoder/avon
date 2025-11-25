@@ -46,6 +46,19 @@ fn print_builtin_docs() {
     println!("  length       :: [a] -> Int  (also works on strings)");
     println!();
 
+    // Map/Dictionary Operations
+    println!("Map/Dictionary Operations:");
+    println!("--------------------------");
+    println!("  get          :: [[String, a]] -> String -> a | None");
+    println!("  set          :: [[String, a]] -> String -> a -> [[String, a]]");
+    println!("  keys         :: [[String, a]] -> [String]");
+    println!("  values       :: [[String, a]] -> [a]");
+    println!("  has_key      :: [[String, a]] -> String -> Bool");
+    println!();
+    println!("  Note: Maps are represented as lists of [key, value] pairs.");
+    println!("        JSON objects are automatically parsed into this format.");
+    println!();
+
     // Type Conversion
     println!("Type Conversion:");
     println!("----------------");

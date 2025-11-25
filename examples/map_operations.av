@@ -1,0 +1,48 @@
+# Map/Dictionary Operations Demo
+# Using list of [key, value] pairs as a dictionary
+
+# Create a map (list of pairs)
+let config = [
+  ["name", "myapp"],
+  ["version", "1.0.0"],
+  ["port", "8080"],
+  ["debug", "true"]
+] in
+
+# Get values by key
+let app_name = get config "name" in
+let port = get config "port" in
+let missing = get config "missing_key" in
+
+# Check if key exists
+let has_name = has_key config "name" in
+let has_missing = has_key config "missing" in
+
+# Get all keys and values
+let all_keys = keys config in
+let all_values = values config in
+
+# Set/update a value (returns new map)
+let updated = set config "version" "2.0.0" in
+let with_new_key = set updated "env" "production" in
+
+# Output results
+{"Map Operations Demo
+===================
+
+Original config:
+  name: {app_name}
+  port: {port}
+  missing_key: {missing}
+
+Key checks:
+  has 'name': {has_name}
+  has 'missing': {has_missing}
+
+All keys: {all_keys}
+All values: {all_values}
+
+After updates:
+  version: {get updated "version"}
+  new env key: {get with_new_key "env"}
+"}
