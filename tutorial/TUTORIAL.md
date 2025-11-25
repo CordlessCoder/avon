@@ -295,7 +295,7 @@ This is especially useful for functions with multiple parameters:
 let make_config = \env \debug ? false @/config-{env}.yml {"
     environment: {env}
     debug: {debug}
-} in
+"} in
 
 let environments = ["dev", "staging", "prod"] in
 [
