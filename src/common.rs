@@ -39,6 +39,7 @@ pub enum Token {
     Question,
     At,
     BackSlash,
+    Pipe,
 }
 
 impl Token {
@@ -156,6 +157,10 @@ pub enum Expr {
     Member {
         object: Box<Expr>,
         field: String,
+    },
+    Pipe {
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
     },
 }
 

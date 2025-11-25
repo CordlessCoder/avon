@@ -173,6 +173,12 @@ let config = {host: "localhost", port: 8080} in
 config.host  # Access with dots!
 ```
 
+**Pipe Operator** — Chain expressions without nested parentheses
+```avon
+[1, 2, 3, 4, 5] -> filter (\x x > 2) -> length  # Clean and readable!
+# Instead of: length (filter (\x x > 2) [1, 2, 3, 4, 5])
+```
+
 **Module System** — Import files, get their values, use dot notation
 ```avon
 # math.av exports: {double: \x x * 2, triple: \x x * 3, ...}

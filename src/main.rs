@@ -2999,4 +2999,70 @@ mod tests {
         let v = eval(ast.program, &mut symbols, &prog).expect("eval");
         assert_eq!(v.to_string(&prog), "GET /users");
     }
+
+    #[test]
+    fn test_pipe_operator_basic() {
+        // Test basic pipe operator: lhs -> rhs
+        let prog = "[1, 2, 3] -> length".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "3");
+    }
+
+    #[test]
+    fn test_pipe_operator_string() {
+        // Test pipe with string function
+        let prog = "\"hello\" -> upper".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "HELLO");
+    }
+
+    #[test]
+    fn test_pipe_operator_chained() {
+        // Test chained pipe operators
+        let prog = "\"hello\" -> upper -> length".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "5");
+    }
+
+    #[test]
+    fn test_pipe_operator_with_conversion() {
+        // Test pipe with type conversion
+        let prog = "42 -> to_string -> length".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "2");
+    }
+
+    #[test]
+    fn test_pipe_operator_with_filter() {
+        // Test pipe with filter operation
+        let prog = "[1, 2, 3, 4, 5] -> filter (\\x x > 2) -> length".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "3");
+    }
+
+    #[test]
+    fn test_pipe_operator_with_map() {
+        // Test pipe with map operation
+        let prog = "[1, 2, 3] -> map (\\x x * 2) -> length".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "3");
+    }
 }

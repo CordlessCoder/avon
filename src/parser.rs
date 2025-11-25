@@ -362,9 +362,34 @@ fn try_parse_expr(stream: &mut Peekable<Iter<Token>>) -> ParseResult<Expr> {
         _ => {}
     }
 
-    let lhs = parse_cmp(stream);
+    let lhs = parse_pipe(stream);
+    Ok(lhs)
+}
 
-    let mut lhs = lhs;
+fn parse_pipe(stream: &mut Peekable<Iter<Token>>) -> Expr {
+    let mut lhs = parse_app(stream);
+
+    loop {
+        match stream.peek() {
+            Some(Token::Pipe) => {
+                // Handle pipe operator: lhs -> rhs
+                stream.next(); // consume the pipe token
+                let rhs = parse_app(stream);
+                lhs = Expr::Pipe {
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                };
+            }
+            _ => break,
+        }
+    }
+
+    lhs
+}
+
+fn parse_app(stream: &mut Peekable<Iter<Token>>) -> Expr {
+    let mut lhs = parse_cmp(stream);
+
     loop {
         match stream.peek() {
             Some(Token::Identifier(id)) if id != "in" && id != "then" && id != "else" => {
@@ -403,7 +428,7 @@ fn try_parse_expr(stream: &mut Peekable<Iter<Token>>) -> ParseResult<Expr> {
         }
     }
 
-    Ok(lhs)
+    lhs
 }
 
 pub fn parse(input: Vec<Token>) -> Ast {

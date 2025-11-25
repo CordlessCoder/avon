@@ -1,0 +1,23 @@
+# Example: Pipe Operator
+# The pipe operator (->) chains expressions without nested parentheses
+# Syntax: lhs -> rhs is equivalent to rhs(lhs)
+
+# Example 1: Simple pipe with builtin function
+let numbers = [1, 2, 3, 4, 5] in
+let count = numbers -> length in
+
+# Example 2: Chained pipes - filter then get length
+let even_count = [1, 2, 3, 4, 5] -> filter (\x x > 2) -> length in
+
+# Example 3: String transformations
+let text = "hello world" in
+let upper_length = text -> upper -> length in
+
+# Example 4: Type conversion chain
+let num_str_length = 42 -> to_string -> length in
+
+# Example 5: Map and chain operations
+let doubled = [1, 2, 3] -> map (\x x * 2) in
+
+# Return all results
+[count, even_count, upper_length, num_str_length, doubled]

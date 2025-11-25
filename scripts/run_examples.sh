@@ -284,6 +284,8 @@ remaining_files=(
   "terraform_gen.av"
   "vim_plugins.av"
   "vim_simple.av"
+  "pipe_operator.av"
+  "pipe_operator_demo.av"
 )
 
 eval_count=0

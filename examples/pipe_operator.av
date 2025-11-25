@@ -1,0 +1,8 @@
+# Example: Pipe Operator
+# The pipe operator (->) chains functions together, passing the result
+# of the left expression as the argument to the right function.
+# This eliminates the need for nested parentheses.
+
+# Basic piping: pass a value through a function
+42 -> to_string -> length
+

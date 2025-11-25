@@ -462,7 +462,15 @@ pub fn tokenize(input: String) -> Result<Vec<Token>, EvalError> {
                 output.push(Token::Less);
             }
             '+' => output.push(Token::Add),
-            '-' => output.push(Token::Sub),
+            '-' => {
+                // Check for pipe operator ->
+                if let Some('>') = stream.peek() {
+                    stream.next();
+                    output.push(Token::Pipe);
+                    continue;
+                }
+                output.push(Token::Sub)
+            }
             '/' => output.push(Token::Div),
             '*' => output.push(Token::Mul),
             '(' => output.push(Token::LParen),

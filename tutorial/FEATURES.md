@@ -579,6 +579,26 @@ center "Title" 20                  # "       Title        "
 - `>=` Greater or equal
 - `<=` Less or equal
 
+### Pipe Operator
+```avon
+# Chain expressions without nested function calls
+[1, 2, 3] -> length                    # 3
+"hello" -> upper -> length             # 5
+[1, 2, 3, 4, 5] -> filter (\x x > 2) -> length  # 3
+```
+
+The pipe operator `->` passes the left-hand side value as an argument to the right-hand side function. This eliminates the need for nested parentheses and makes code more readable.
+
+**Without pipes (nested):**
+```avon
+length (filter (\x x > 2) [1, 2, 3, 4, 5])
+```
+
+**With pipes (cleaner):**
+```avon
+[1, 2, 3, 4, 5] -> filter (\x x > 2) -> length
+```
+
 ---
 
 ## CLI Commands

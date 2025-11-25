@@ -968,6 +968,14 @@ pub fn eval(
             path: (path, symbols.clone()),
             template: (template, symbols.clone()),
         }),
+        Expr::Pipe { lhs, rhs } => {
+            // Evaluate lhs to get a value
+            let lhs_val = eval(*lhs, symbols, source)?;
+            // Evaluate rhs to get a function
+            let rhs_fn = eval(*rhs, symbols, source)?;
+            // Apply the function to the value
+            apply_function(&rhs_fn, lhs_val, source)
+        }
     }
 }
 
