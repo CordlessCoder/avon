@@ -441,10 +441,9 @@ The `{...}` syntax embeds an expression to be evaluated and inserted into the ou
 Templates preserve newlines exactly as you write them:
 
 ```avon
-let name = "Alice" in
-{"
-Hello, {name}!
-Welcome to Avon.
+let name = "Alice" in {"
+    Hello, {name}!
+    Welcome to Avon.
 "}
 ```
 
