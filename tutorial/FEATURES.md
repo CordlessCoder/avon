@@ -96,12 +96,30 @@ Count: {length items}
 
 **Key features:**
 - Newlines are preserved
-- Indentation is dedented (automatically)
+- **Indentation is automatically dedented** (based on first non-whitespace character)
 - Any expression can be interpolated with `{expr}`
 - Lists expand to newline-separated items
 - Escape hatch for literal braces (see below)
 
-**Examples:** `examples/list_insert.av`, `examples/complex_template.av`
+**Indentation:** The column position of the first non-whitespace character in a template becomes the baseline. All lines are dedented by that amount. This lets you indent templates naturally to match your code structure:
+
+```avon
+# Indented by 2 spaces - first content at column 2
+let config = \name
+  {"
+  Name: {name}
+  Port: 8080
+  "}
+in
+
+# Output has no leading indent, internal structure preserved:
+# Name: MyApp
+# Port: 8080
+```
+
+This works with any nesting level and preserves relative indentation (useful for Python/YAML code generation).
+
+**Examples:** `examples/list_insert.av`, `examples/complex_template.av`, `examples/baseline_indentation_demo.av`
 
 #### Template Escape Hatch
 

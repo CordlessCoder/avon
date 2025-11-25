@@ -510,20 +510,43 @@ pub fn dedent(s: &str) -> String {
         }
     }
 
-    let min_indent = lines
+    if lines.is_empty() {
+        return String::new();
+    }
+
+    // Find the column position of the first non-whitespace character
+    // This becomes our baseline for dedentation
+    let baseline_indent = lines
         .iter()
-        .filter(|l| !l.trim().is_empty())
-        .map(|l| l.chars().take_while(|c| *c == ' ' || *c == '\t').count())
-        .min()
+        .find_map(|line| {
+            let leading_spaces = line.chars().take_while(|c| c.is_whitespace()).count();
+            if leading_spaces < line.len() {
+                // This line has non-whitespace content
+                Some(leading_spaces)
+            } else {
+                // This line is all whitespace, skip it
+                None
+            }
+        })
         .unwrap_or(0);
 
     let out_lines: Vec<String> = lines
         .into_iter()
         .map(|l| {
-            if l.len() >= min_indent {
-                l.chars().skip(min_indent).collect()
+            let trimmed_len = l.trim_start().len();
+            
+            // Count leading whitespace
+            let leading_spaces = l.chars().take_while(|c| c.is_whitespace()).count();
+            
+            // If line is empty/whitespace-only, keep it empty
+            if trimmed_len == 0 {
+                String::new()
+            } else if leading_spaces >= baseline_indent {
+                // Remove baseline_indent spaces
+                l.chars().skip(baseline_indent).collect()
             } else {
-                "".to_string()
+                // Line has fewer spaces than baseline, keep as-is
+                l.to_string()
             }
         })
         .collect();
