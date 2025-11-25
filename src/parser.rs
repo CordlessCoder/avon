@@ -8,18 +8,20 @@ pub fn parse_postfix(stream: &mut Peekable<Iter<Token>>) -> Expr {
     let mut expr = parse_atom(stream);
 
     // Handle member access (dot notation)
-    while let Some(Token::Dot) = stream.peek() {
+    while let Some(Token::Dot(line)) = stream.peek() {
+        let line = *line;
         stream.next(); // consume the dot
-        if let Some(Token::Identifier(field)) = stream.peek() {
+        if let Some(Token::Identifier(field, _)) = stream.peek() {
             let field_name = field.clone();
             stream.next(); // consume the identifier
             expr = Expr::Member {
                 object: Box::new(expr),
                 field: field_name,
+                line,
             };
         } else {
             eprintln!("Parse error: expected identifier after '.'");
-            return Expr::None;
+            return Expr::None(line);
         }
     }
 
@@ -29,16 +31,17 @@ pub fn parse_postfix(stream: &mut Peekable<Iter<Token>>) -> Expr {
 pub fn parse_atom(stream: &mut Peekable<Iter<Token>>) -> Expr {
     match stream.next() {
         Some(atom) => match atom {
-            Token::Int(value) => Expr::Number(crate::common::Number::from(*value)),
-            Token::Float(value) => Expr::Number(crate::common::Number::from_f64(*value)),
-            Token::String(value) => Expr::String(value.clone()),
-            Token::Template(chunks) => Expr::Template(chunks.clone()),
-            Token::Path(chunks) => Expr::Path(chunks.clone()),
-            Token::LBracket => {
+            Token::Int(value, line) => Expr::Number(crate::common::Number::from(*value), *line),
+            Token::Float(value, line) => Expr::Number(crate::common::Number::from_f64(*value), *line),
+            Token::String(value, line) => Expr::String(value.clone(), *line),
+            Token::Template(chunks, line) => Expr::Template(chunks.clone(), *line),
+            Token::Path(chunks, line) => Expr::Path(chunks.clone(), *line),
+            Token::LBracket(line) => {
+                let line = *line;
                 let mut items = Vec::new();
                 loop {
                     match stream.peek() {
-                        Some(Token::RBracket) => {
+                        Some(Token::RBracket(_)) => {
                             stream.next();
                             break;
                         }
@@ -46,11 +49,11 @@ pub fn parse_atom(stream: &mut Peekable<Iter<Token>>) -> Expr {
                             let expr = parse_expr(stream);
                             items.push(expr);
                             match stream.peek() {
-                                Some(Token::Comma) => {
+                                Some(Token::Comma(_)) => {
                                     stream.next();
                                     continue;
                                 }
-                                Some(Token::RBracket) => {
+                                Some(Token::RBracket(_)) => {
                                     stream.next();
                                     break;
                                 }
@@ -59,40 +62,41 @@ pub fn parse_atom(stream: &mut Peekable<Iter<Token>>) -> Expr {
                                         "Parse error: expected ',' or ']' in list, got {:?}",
                                         a
                                     );
-                                    return Expr::None;
+                                    return Expr::None(line);
                                 }
                             }
                         }
                         None => {
                             eprintln!("Parse error: unexpected end of input in list literal");
-                            return Expr::None;
+                            return Expr::None(line);
                         }
                     }
                 }
-                Expr::List(items)
+                Expr::List(items, line)
             }
-            Token::LBrace => {
+            Token::LBrace(line) => {
+                let line = *line;
                 // Parse dict literal: {key:value, key:value, ...}
                 let mut pairs = Vec::new();
                 loop {
                     match stream.peek() {
-                        Some(Token::RBrace) => {
+                        Some(Token::RBrace(_)) => {
                             stream.next();
                             break;
                         }
-                        Some(Token::Identifier(key)) => {
+                        Some(Token::Identifier(key, _)) => {
                             let key_name = key.clone();
                             stream.next();
 
                             // Expect colon
                             match stream.next() {
-                                Some(Token::Colon) => {}
+                                Some(Token::Colon(_)) => {}
                                 other => {
                                     eprintln!(
                                         "Parse error: expected ':' after dict key, got {:?}",
                                         other
                                     );
-                                    return Expr::None;
+                                    return Expr::None(line);
                                 }
                             }
 
@@ -109,11 +113,11 @@ pub fn parse_atom(stream: &mut Peekable<Iter<Token>>) -> Expr {
 
                             // Check for comma or closing brace
                             match stream.peek() {
-                                Some(Token::Comma) => {
+                                Some(Token::Comma(_)) => {
                                     stream.next();
                                     // Check if there's another entry or if this is a trailing comma
                                     match stream.peek() {
-                                        Some(Token::RBrace) => {
+                                        Some(Token::RBrace(_)) => {
                                             stream.next();
                                             break;
                                         }
@@ -122,11 +126,11 @@ pub fn parse_atom(stream: &mut Peekable<Iter<Token>>) -> Expr {
                                             eprintln!(
                                                 "Parse error: unexpected EOF in dict literal"
                                             );
-                                            return Expr::None;
+                                            return Expr::None(line);
                                         }
                                     }
                                 }
-                                Some(Token::RBrace) => {
+                                Some(Token::RBrace(_)) => {
                                     stream.next();
                                     break;
                                 }
@@ -135,39 +139,39 @@ pub fn parse_atom(stream: &mut Peekable<Iter<Token>>) -> Expr {
                                         "Parse error: expected ',' or '}}' in dict, got {:?}",
                                         other
                                     );
-                                    return Expr::None;
+                                    return Expr::None(line);
                                 }
                             }
                         }
                         None => {
                             eprintln!("Parse error: unexpected end of input in dict literal");
-                            return Expr::None;
+                            return Expr::None(line);
                         }
                         other => {
                             eprintln!(
                                 "Parse error: expected identifier as dict key, got {:?}",
                                 other
                             );
-                            return Expr::None;
+                            return Expr::None(line);
                         }
                     }
                 }
-                Expr::Dict(pairs)
+                Expr::Dict(pairs, line)
             }
-            Token::Identifier(value) if value != "in" && value != "let" => match value.as_str() {
-                "true" => Expr::Bool(true),
-                "false" => Expr::Bool(false),
-                "none" => Expr::None,
-                _ => Expr::Ident(value.clone()),
+            Token::Identifier(value, line) if value != "in" && value != "let" => match value.as_str() {
+                "true" => Expr::Bool(true, *line),
+                "false" => Expr::Bool(false, *line),
+                "none" => Expr::None(*line),
+                _ => Expr::Ident(value.clone(), *line),
             },
-            Token::LParen => {
+            Token::LParen(_) => {
                 let expr = parse_expr(stream);
                 stream.next();
                 expr
             }
-            _ => Expr::None,
+            t => Expr::None(t.line()),
         },
-        _ => Expr::None,
+        None => Expr::None(0),
     }
 }
 
@@ -180,11 +184,13 @@ pub fn parse_factor(stream: &mut Peekable<Iter<Token>>) -> Expr {
         }
         // Safe: we just peeked and confirmed there's a token
         let op = stream.next().expect("token exists after peek").clone();
+        let line = op.line();
         let rhs = parse_postfix(stream);
         lhs = Expr::Binary {
             lhs: Box::new(lhs),
             op,
             rhs: Box::new(rhs),
+            line,
         };
     }
 
@@ -200,37 +206,39 @@ pub fn parse_term(stream: &mut Peekable<Iter<Token>>) -> Expr {
         }
         // Safe: we just peeked and confirmed there's a token
         let op = stream.next().expect("token exists after peek").clone();
+        let line = op.line();
         let rhs = parse_factor(stream);
         lhs = Expr::Binary {
             lhs: Box::new(lhs),
             op,
             rhs: Box::new(rhs),
+            line,
         };
     }
 
     lhs
 }
 
-
-
 pub fn parse_cmp(stream: &mut Peekable<Iter<Token>>) -> Expr {
     let mut lhs = parse_term(stream);
 
     loop {
         match stream.peek() {
-            Some(Token::DoubleEqual)
-            | Some(Token::NotEqual)
-            | Some(Token::Greater)
-            | Some(Token::Less)
-            | Some(Token::GreaterEqual)
-            | Some(Token::LessEqual) => {
+            Some(Token::DoubleEqual(_))
+            | Some(Token::NotEqual(_))
+            | Some(Token::Greater(_))
+            | Some(Token::Less(_))
+            | Some(Token::GreaterEqual(_))
+            | Some(Token::LessEqual(_)) => {
                 // Safe: we just peeked and confirmed there's a token
                 let op = stream.next().expect("token exists after peek").clone();
+                let line = op.line();
                 let rhs = parse_term(stream);
                 lhs = Expr::Binary {
                     lhs: Box::new(lhs),
                     op,
                     rhs: Box::new(rhs),
+                    line,
                 };
                 continue;
             }
@@ -241,21 +249,20 @@ pub fn parse_cmp(stream: &mut Peekable<Iter<Token>>) -> Expr {
     lhs
 }
 
-
-// parse_and: handles && (logical AND) - higher precedence than OR
 pub fn parse_and(stream: &mut Peekable<Iter<Token>>) -> Expr {
     let mut lhs = parse_app(stream);
 
     loop {
         match stream.peek() {
-            Some(Token::And) => {
-                // Safe: we just peeked and confirmed there's a token
+            Some(Token::And(line)) => {
+                let line = *line;
                 let op = stream.next().expect("token exists after peek").clone();
                 let rhs = parse_app(stream);
                 lhs = Expr::Binary {
                     lhs: Box::new(lhs),
                     op,
                     rhs: Box::new(rhs),
+                    line,
                 };
                 continue;
             }
@@ -266,20 +273,20 @@ pub fn parse_and(stream: &mut Peekable<Iter<Token>>) -> Expr {
     lhs
 }
 
-// parse_or: handles || (logical OR) - lower precedence than AND
 pub fn parse_or(stream: &mut Peekable<Iter<Token>>) -> Expr {
     let mut lhs = parse_and(stream);
 
     loop {
         match stream.peek() {
-            Some(Token::Or) => {
-                // Safe: we just peeked and confirmed there's a token
+            Some(Token::Or(line)) => {
+                let line = *line;
                 let op = stream.next().expect("token exists after peek").clone();
                 let rhs = parse_and(stream);
                 lhs = Expr::Binary {
                     lhs: Box::new(lhs),
                     op,
                     rhs: Box::new(rhs),
+                    line,
                 };
                 continue;
             }
@@ -290,19 +297,27 @@ pub fn parse_or(stream: &mut Peekable<Iter<Token>>) -> Expr {
     lhs
 }
 
-// Keep parse_logic as an alias to parse_or for backward compatibility
 pub fn parse_logic(stream: &mut Peekable<Iter<Token>>) -> Expr {
     parse_or(stream)
 }
+
 fn eat(stream: &mut Peekable<Iter<Token>>, token: Token) -> ParseResult<()> {
     let next = stream.next();
     if let Some(t) = next {
-        if t != &token {
-            return Err(EvalError::new(
+        // Match token variants ignoring line info
+        let match_ = match (t, &token) {
+             (Token::Identifier(s1, _), Token::Identifier(s2, _)) => s1 == s2,
+             (Token::Equal(_), Token::Equal(_)) => true,
+             (Token::BackSlash(_), Token::BackSlash(_)) => true,
+             _ => false,
+        };
+        
+        if !match_ {
+             return Err(EvalError::new(
                 format!("parse error: expected {:?}, found {:?}", token, t),
                 Some(format!("{:?}", token)),
                 Some(format!("{:?}", t)),
-                1,
+                t.line(),
             ));
         }
     } else {
@@ -329,12 +344,13 @@ pub fn parse_expr(stream: &mut Peekable<Iter<Token>>) -> Expr {
 fn try_parse_expr(stream: &mut Peekable<Iter<Token>>) -> ParseResult<Expr> {
     match stream.peek() {
         Some(token) => match token {
-            Token::Identifier(ident) if ident == "let" => {
-                eat(stream, Token::Identifier(String::from("let")))?;
+            Token::Identifier(ident, line) if ident == "let" => {
+                let line = *line;
+                eat(stream, Token::Identifier(String::from("let"), 0))?;
                 let ident = stream
                     .next()
                     .and_then(|t| match t {
-                        Token::Identifier(ident) => Some(ident.clone()),
+                        Token::Identifier(ident, _) => Some(ident.clone()),
                         a => {
                             eprintln!("Parse error: expected identifier after 'let', got {:?}", a);
                             None
@@ -345,21 +361,22 @@ fn try_parse_expr(stream: &mut Peekable<Iter<Token>>) -> ParseResult<Expr> {
                             "expected identifier after 'let'",
                             Some("identifier".to_string()),
                             Some("something else".to_string()),
-                            1,
+                            line,
                         )
                     })?;
-                eat(stream, Token::Equal)?;
+                eat(stream, Token::Equal(0))?;
                 let value = Box::new(try_parse_expr(stream)?);
-                eat(stream, Token::Identifier(String::from("in")))?;
+                eat(stream, Token::Identifier(String::from("in"), 0))?;
                 let expr = Box::new(try_parse_expr(stream)?);
-                return Ok(Expr::Let { ident, value, expr });
+                return Ok(Expr::Let { ident, value, expr, line });
             }
-            Token::BackSlash => {
-                eat(stream, Token::BackSlash)?;
+            Token::BackSlash(line) => {
+                let line = *line;
+                eat(stream, Token::BackSlash(0))?;
                 let ident = stream
                     .next()
                     .and_then(|t| match t {
-                        Token::Identifier(ident) => Some(ident.clone()),
+                        Token::Identifier(ident, _) => Some(ident.clone()),
                         _ => None,
                     })
                     .ok_or_else(|| {
@@ -367,12 +384,12 @@ fn try_parse_expr(stream: &mut Peekable<Iter<Token>>) -> ParseResult<Expr> {
                             "expected identifier after '\\'",
                             Some("identifier".to_string()),
                             None,
-                            1,
+                            line,
                         )
                     })?;
 
                 let mut default: Option<Expr> = None;
-                if let Some(Token::Question) = stream.peek() {
+                if let Some(Token::Question(_)) = stream.peek() {
                     stream.next();
                     let def_expr = parse_term(stream);
                     default = Some(def_expr);
@@ -384,26 +401,30 @@ fn try_parse_expr(stream: &mut Peekable<Iter<Token>>) -> ParseResult<Expr> {
                     ident,
                     default: default.map(|d| Box::new(d)),
                     expr: Box::new(expr),
+                    line,
                 });
             }
-            Token::Path(chunks) => {
+            Token::Path(chunks, line) => {
+                let line = *line;
                 let path_chunks = chunks.clone();
                 stream.next();
                 match stream.peek() {
-                    Some(Token::Template(template_chunks)) => {
+                    Some(Token::Template(template_chunks, _)) => {
                         stream.next();
                         return Ok(Expr::FileTemplate {
                             path: path_chunks.clone(),
                             template: template_chunks.clone(),
+                            line,
                         });
                     }
-                    Some(Token::At) => {
+                    Some(Token::At(_)) => {
                         stream.next();
                         match stream.next() {
-                            Some(Token::Template(template_chunks)) => {
+                            Some(Token::Template(template_chunks, _)) => {
                                 return Ok(Expr::FileTemplate {
                                     path: path_chunks.clone(),
                                     template: template_chunks.clone(),
+                                    line,
                                 });
                             }
                             a => {
@@ -411,24 +432,25 @@ fn try_parse_expr(stream: &mut Peekable<Iter<Token>>) -> ParseResult<Expr> {
                                     format!("expected template after '@', got {:?}", a),
                                     Some("template string".to_string()),
                                     Some(format!("{:?}", a)),
-                                    1,
+                                    line,
                                 ))
                             }
                         }
                     }
                     _ => {
-                        return Ok(Expr::Path(path_chunks));
+                        return Ok(Expr::Path(path_chunks, line));
                     }
                 }
             }
-            Token::Identifier(ident) if ident == "if" => {
-                eat(stream, Token::Identifier(String::from("if")))?;
+            Token::Identifier(ident, line) if ident == "if" => {
+                let line = *line;
+                eat(stream, Token::Identifier(String::from("if"), 0))?;
                 let cond = Box::new(try_parse_expr(stream)?);
-                eat(stream, Token::Identifier(String::from("then")))?;
+                eat(stream, Token::Identifier(String::from("then"), 0))?;
                 let t = Box::new(try_parse_expr(stream)?);
-                eat(stream, Token::Identifier(String::from("else")))?;
+                eat(stream, Token::Identifier(String::from("else"), 0))?;
                 let f = Box::new(try_parse_expr(stream)?);
-                return Ok(Expr::If { cond, t, f });
+                return Ok(Expr::If { cond, t, f, line });
             }
             _ => {}
         },
@@ -444,13 +466,15 @@ fn parse_pipe(stream: &mut Peekable<Iter<Token>>) -> Expr {
 
     loop {
         match stream.peek() {
-            Some(Token::Pipe) => {
+            Some(Token::Pipe(line)) => {
+                let line = *line;
                 // Handle pipe operator: lhs -> rhs
                 stream.next(); // consume the pipe token
                 let rhs = parse_logic(stream);
                 lhs = Expr::Pipe {
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
+                    line,
                 };
             }
             _ => break,
@@ -465,34 +489,25 @@ fn parse_app(stream: &mut Peekable<Iter<Token>>) -> Expr {
 
     loop {
         match stream.peek() {
-            Some(Token::Identifier(id)) if id != "in" && id != "then" && id != "else" => {
+            Some(Token::Identifier(id, _)) if id != "in" && id != "then" && id != "else" => {
                 let rhs = parse_cmp(stream);
-                lhs = Expr::Application {
-                    lhs: Box::new(lhs),
-                    rhs: Box::new(rhs),
-                };
+                let line = lhs.line(); lhs = Expr::Application { lhs: Box::new(lhs), rhs: Box::new(rhs), line };
             }
-            Some(Token::Int(_))
-            | Some(Token::Float(_))
-            | Some(Token::String(_))
-            | Some(Token::Template(_))
-            | Some(Token::LParen)
-            | Some(Token::LBracket)
-            | Some(Token::Path(_))
-            | Some(Token::BackSlash) => {
+            Some(Token::Int(_, _))
+            | Some(Token::Float(_, _))
+            | Some(Token::String(_, _))
+            | Some(Token::Template(_, _))
+            | Some(Token::LParen(_))
+            | Some(Token::LBracket(_))
+            | Some(Token::Path(_, _))
+            | Some(Token::BackSlash(_)) => {
                 let rhs = parse_cmp(stream);
-                lhs = Expr::Application {
-                    lhs: Box::new(lhs),
-                    rhs: Box::new(rhs),
-                };
+                let line = lhs.line(); lhs = Expr::Application { lhs: Box::new(lhs), rhs: Box::new(rhs), line };
             }
-            Some(Token::Identifier(ident)) => {
+            Some(Token::Identifier(ident, _)) => {
                 if ident != "in" && ident != "let" && ident != "then" && ident != "else" {
                     let rhs = parse_cmp(stream);
-                    lhs = Expr::Application {
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    };
+                    let line = lhs.line(); lhs = Expr::Application { lhs: Box::new(lhs), rhs: Box::new(rhs), line };
                     continue;
                 }
                 break;

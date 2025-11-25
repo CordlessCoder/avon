@@ -1,14 +1,8 @@
 # Avon — The Modern Template Language for Developers
 
-Welcome to Avon! This is a comprehensive guide to using Avon, a lightweight yet powerful templating and file generation language designed for developers who build infrastructure, configure tools, and generate code at scale.
+Welcome to **Avon**. You're about to give your configuration workflow superpowers.
 
-Avon makes it easy to:
-- **Generate multi-file projects** from templates with data
-- **Manage configuration** for Docker, Kubernetes, CI/CD pipelines
-- **Create boilerplate** for any tool or language
-- **Automate repetitive tasks** with a clean, functional syntax
-
-This tutorial covers everything from basic syntax to advanced patterns. We assume you have the `avon` binary and access to examples in the `examples/` directory.
+Avon is designed for developers who are tired of copy-pasting. Whether you're building Kubernetes manifests, setting up CI/CD pipelines, or generating boilerplate code, Avon turns repetitive tasks into elegant, maintainable code.
 
 **Pro tip:** Throughout this guide, look at the `examples/` directory for real-world use cases. Each example demonstrates practical Avon patterns you can adapt for your own projects.
 
@@ -64,7 +58,7 @@ Now let's generate an actual file. Create `greet.av`:
 Deploy it:
 
 ```bash
-avon examples/greet.av --deploy -name Alice --root /tmp/output --force
+avon deploy examples/greet.av -name Alice --root /tmp/output --force
 ```
 
 This creates `/tmp/output/greeting.txt` with the content:
@@ -76,7 +70,7 @@ Welcome to Avon.
 **What happened?**
 - `\name` defines a function parameter
 - `@/greeting.txt` specifies the output file path
-- `{...}` is a template that interpolates the `{name}` variable
+- `{"..."}` is a template that interpolates the `{name}` variable
 
 ### Generate Multiple Files
 
@@ -93,7 +87,7 @@ map (\env @/config-{env}.yml {"
 Deploy it:
 
 ```bash
-avon examples/gen_configs.av --deploy --root ./configs --force
+avon deploy examples/gen_configs.av --root ./configs --force
 ```
 
 This creates three files: `config-dev.yml`, `config-staging.yml`, and `config-prod.yml` — each with appropriate settings.
@@ -121,7 +115,7 @@ When you run an Avon program, it evaluates to a **Value**. Here are the types of
 
 When evaluation is complete, `avon` either:
 1. **Prints the result** (for `eval` command)
-2. **Materializes files** (for `--deploy` command)
+2. **Materializes files** (for `deploy` command)
 
 Error messages stay concise, noting which function/operator failed but omitting line numbers or file references—rely on the debugger helpers for additional context.
 
@@ -199,11 +193,11 @@ a <= b                     # Less or equal
 ```
 
 **Operator overloading:** The `+` operator adapts to its operands:
-- `"hello" + " world"` → `"hello world"` (strings concatenate)
-- `[1,2] + [3,4]` → `[1,2,3,4]` (lists concatenate)
-- `5 + 3` → `8` (numbers add)
-- `{"Hello "} + {"World!"}` → `"Hello World!"` (templates concatenate)
-- `@/home/user + @/projects` → `/home/user//projects` (paths join with `/` separator)
+- `"hello" + " world"` -> `"hello world"` (strings concatenate)
+- `[1,2] + [3,4]` -> `[1,2,3,4]` (lists concatenate)
+- `5 + 3` -> `8` (numbers add)
+- `{"Hello "} + {"World!"}` -> `"Hello World!"` (templates concatenate)
+- `@/home/user + @/projects` -> `/home/user//projects` (paths join with `/` separator)
 
 **Template Concatenation:**
 Templates can be combined with `+` to merge content:
@@ -301,22 +295,22 @@ When deploying, you can provide default values for parameters using `?`:
 "}
 ```
 
-When you deploy this without a `--deploy -name` argument, `name` defaults to `"Guest"`.
+When you deploy this without a named argument, `name` defaults to `"Guest"`.
 
 ```bash
-avon examples/greet.av --deploy
+avon deploy examples/greet.av
 # Uses default: "Guest"
 
-avon examples/greet.av --deploy -name Alice
+avon deploy examples/greet.av -name Alice
 # Uses provided value: "Alice"
 ```
 
 ### Named Deploy Arguments
 
-When using the `--deploy` command, you can pass named arguments with `-param value`:
+When using the `deploy` command, you can pass named arguments with `-param value`:
 
 ```bash
-avon examples/config.av --deploy -env prod -debug false
+avon deploy examples/config.av -env prod -debug false
 ```
 
 This is especially useful for functions with multiple parameters:
@@ -841,7 +835,7 @@ Create `greet.av`:
 Deploy:
 
 ```bash
-avon examples/greet.av --deploy -name Alice --root ./out --force
+avon deploy examples/greet.av -name Alice --root ./out --force
 ```
 
 Creates: `./out/greeting.txt`
@@ -869,7 +863,7 @@ let name = "my-app" in
 Deploy it:
 
 ```bash
-avon examples/gen_files.av --deploy --root ./project --force
+avon deploy examples/gen_files.av --root ./project --force
 ```
 
 Creates all three files.
@@ -970,7 +964,7 @@ Avon comes with a toolkit of built-in functions for common tasks. All builtins a
 | `format_int num width` | Format integer with zero-padding | `format_int 7 3` | `"007"` |
 | `format_float num prec` | Format float with precision | `format_float 3.14159 2` | `"3.14"` |
 
-**String to bool conversions:** `"true"`, `"yes"`, `"1"`, `"on"` → `true`; `"false"`, `"no"`, `"0"`, `"off"`, `""` → `false`
+**String to bool conversions:** `"true"`, `"yes"`, `"1"`, `"on"` -> `true`; `"false"`, `"no"`, `"0"`, `"off"`, `""` -> `false`
 
 ### Advanced List Operations
 
@@ -1011,10 +1005,10 @@ let formatted = map (\item concat "service: " item) items in
 avon eval examples/map_example.av
 
 # Deploy: evaluate program and generate files
-avon examples/site_generator.av --deploy --root ./output --force
+avon deploy examples/site_generator.av --root ./output --force
 
 # Deploy with named arguments
-avon examples/greet.av --deploy -name Alice -age 30 --root ./gen --force
+avon deploy examples/greet.av -name Alice -age 30 --root ./gen --force
 ```
 
 ### Command-Line Flags
@@ -1022,47 +1016,47 @@ avon examples/greet.av --deploy -name Alice -age 30 --root ./gen --force
 | Flag | Purpose | Example |
 |------|---------|---------|
 | `eval` | Evaluate program and print result | `avon eval program.av` |
-| `--deploy` | Generate files using result | `avon program.av --deploy ...` |
-| `-param value` | Named argument for deploy | `--deploy -name alice` |
+| `deploy` | Generate files using result | `avon deploy program.av ...` |
+| `run` | Evaluate code string directly | `avon run '1 + 1'` |
+| `-param value` | Named argument for deploy | `deploy ... -name alice` |
 | `--root <dir>` | Prepend directory to all generated paths | `--root ./output` |
 | `--force` | Overwrite existing files without warning | `--force` |
 | `--append` | Append to existing files instead of overwriting | `--append` |
 | `--if-not-exists` | Only write file if it doesn't already exist | `--if-not-exists` |
-| `--git owner/repo/path` | Fetch and deploy from GitHub (implies --deploy) | `--git pyrotek45/avon/examples/site.av` |
-| `--git-eval owner/repo/path` | Fetch and evaluate from GitHub | `--git-eval pyrotek45/avon/examples/test.av` |
+| `--git <url>` | Fetch and use git raw URL as source | `avon deploy --git user/repo/file.av` |
 
 ### Real-World Examples
 
 Generate site with custom name:
 
 ```bash
-avon examples/site_generator.av --deploy -name "My Site" --root ./website --force
+avon deploy examples/site_generator.av -name "My Site" --root ./website --force
 ```
 
 Generate config files for all environments:
 
 ```bash
-avon examples/config_gen.av --deploy --root ./configs --force
+avon deploy examples/config_gen.av --root ./configs --force
 ```
 
 Fetch and deploy a program from GitHub:
 
 ```bash
-avon --git pyrotek45/avon/examples/site_generator.av --root ./site
+avon deploy --git pyrotek45/avon/examples/site_generator.av --root ./site
 ```
 
 Fetch and evaluate a program from GitHub:
 
 ```bash
-avon --git-eval pyrotek45/avon/examples/string_functions.av
+avon eval --git pyrotek45/avon/examples/string_functions.av
 ```
 
 ---
 
 ## Error handling and debugging
 
-- Runtime errors produce `EvalError` with a concise message that names the failing function/operator; they do not include source line or caret information, so rely on `trace`, `debug`, or assertions to surface the relevant context.
-- Lexing / parsing errors remain minimal as well and do not report line numbers—fix the syntax by examining the surrounding code manually or with editor assistance.
+- Runtime errors produce `EvalError` with a clear message that names the failing function/operator and includes the source line number and context code to help you locate the issue.
+- Lexing / parsing errors also report line numbers and context to help you fix syntax issues quickly.
 - If deployment panics during file materialization, `avon` catches the panic and reports `Deployment panicked` rather than aborting your entire process. This protects you from half-written states. Use `--force` and test locally.
 
 ---
@@ -1092,7 +1086,7 @@ Always test your program with `eval` first:
 avon eval examples/gen_config.av
 
 # Once satisfied, deploy
-avon examples/gen_config.av --deploy --root ./out --force
+avon deploy examples/gen_config.av --root ./out --force
 ```
 
 ### Use Named Arguments
@@ -1101,10 +1095,10 @@ For functions with multiple parameters, use named arguments for clarity:
 
 ```bash
 # Good: clear what each argument means
-avon program.av --deploy -app myservice -env prod -version 1.0
+avon deploy program.av -app myservice -env prod -version 1.0
 
 # Less clear: position-dependent
-avon program.av --deploy myservice prod 1.0
+avon deploy program.av myservice prod 1.0
 ```
 
 ### Always Use `--root`
@@ -1113,10 +1107,10 @@ Avoid accidentally writing to system directories:
 
 ```bash
 # Good: files go to ./generated/
-avon program.av --deploy --root ./generated --force
+avon deploy program.av --root ./generated --force
 
 # Risky: files go to absolute paths
-avon program.av --deploy --force
+avon deploy program.av --force
 ```
 
 ### Keep Templates Readable
@@ -1154,7 +1148,7 @@ See `examples/site_generator.av`. This generates a full website with multiple HT
 - Dynamic content interpolation
 
 ```bash
-avon examples/site_generator.av --deploy --root ./website --force
+avon deploy examples/site_generator.av --root ./website --force
 ```
 
 ### Example 2: Neovim Configuration
@@ -1235,10 +1229,10 @@ You referenced a variable that doesn't exist. Check spelling and make sure it's 
 **Solution:** Remember the rule: use one MORE brace than the template's opening count to get a literal brace.
 
 ```avon
-# ❌ Wrong (in a single-brace template, { starts interpolation)
+# Wrong (in a single-brace template, { starts interpolation)
 @/f.txt {"name: {"}    # Tries to interpolate {, expects closing }
 
-# ✅ Correct (use {{ to escape)
+# Correct (use {{ to escape)
 @/f.txt {"name: {{"}   # Outputs: name: {
 ```
 
@@ -1262,12 +1256,12 @@ You referenced a variable that doesn't exist. Check spelling and make sure it's 
 
 ```avon
 # Single-brace template
-@/f.txt {"Result: { 5 + 5 }"}     # ✅ Works
-@/f.txt {"Result: {{ 5 + 5 }}"}   # ❌ No interpolation, just literals
+@/f.txt {"Result: { 5 + 5 }"}     # Works
+@/f.txt {"Result: {{ 5 + 5 }}"}   # No interpolation, just literals
 
 # Double-brace template
-@/f.txt {{"Result: { 5 + 5 }"}}   # ❌ No interpolation
-@/f.txt {{"Result: {{ 5 + 5 }}"}} # ✅ Works
+@/f.txt {{"Result: { 5 + 5 }"}}   # No interpolation
+@/f.txt {{"Result: {{ 5 + 5 }}"}} # Works
 ```
 
 ### Debugging Tips
@@ -1281,17 +1275,17 @@ You referenced a variable that doesn't exist. Check spelling and make sure it's 
 
 2. **Print intermediate values:** Use `eval` to see what expressions evaluate to:
    ```bash
-   avon --eval-input 'let x = [1,2,3] in map (\n n * 2) x' 
+   avon run 'let x = [1,2,3] in map (\n n * 2) x' 
    ```
 
-3. **Check file generation:** Before using `--deploy`, check if files will be generated where you expect:
+3. **Check file generation:** Before using `deploy`, check if files will be generated where you expect:
    ```bash
-   avon program.av  # Shows what will be generated
+   avon eval program.av  # Shows what will be generated
    ```
 
 4. **Isolate escape hatch issues:** Test brace escaping independently:
    ```bash
-   avon --eval-input '@/t.txt {"{{ {{{{ }}}}"}' 
+   avon run '@/t.txt {"{{ {{{{ }}}}"}' 
    # Outputs: { {{{ }}}
    ```
 
@@ -1311,13 +1305,13 @@ Ready to build something? Here are some ideas:
 
 If you have questions or want to contribute examples, the Avon project welcomes contributions! Check out the repository for more details.
 
-Happy generating! 🚀
+Happy generating!
 
 ### Let bindings and cascading lets
 
 The language uses `let <ident> = <expr> in <expr>` for local bindings. You can nest `let` bindings to build up intermediate values. Example:
 
-```
+```avon
 let a = "A" in
 let b = "B" in
 let combined = concat a b in
@@ -1326,4 +1320,4 @@ let combined = concat a b in
 "}
 ```
 
-This demonstrates cascading `let` expressions: each `let` introduces a symbol visible in the following `in` expression. Always remember to include the `in` keyword — examples and previous docs that omitted it were incorrect and have been fixed.
+This demonstrates cascading `let` expressions: each `let` introduces a symbol visible in the following `in` expression. Always remember to include the `in` keyword.

@@ -8,32 +8,40 @@ Avon provides multiple debugging strategies to understand and troubleshoot your 
 
 Avon uses a **layered debugging approach**:
 
-1. **Error messages** tell you **which function/operator** failed
+1. **Error messages** tell you **where and what** failed with line numbers and context
 2. **Debugging tools** show you **what values** are flowing through
 3. **Type checking** lets you **validate assumptions** early
 4. **CLI flags** show you **how the compiler** processes your code
 
 This separation of concerns makes debugging **focused and efficient**.
 
-## Why Simple Error Messages Work
+## Error Messages
 
-Error messages in Avon are deliberately minimal, and they only name the failing functions/operators—they do not include file paths or line numbers:
+Avon provides direct error messages that name the failing functions/operators and include the line number and source context where the error occurred.
+
+### Anatomy of an Error
+
+Errors in Avon often form a "chain" showing the call stack at the moment of failure.
 
 ```
-function_name: type_error
+function_name: type_error on line 15
+15 |    map (\x x + "string") [1, 2, 3]
 ```
 
 Examples:
-- `concat: expected String, found Number`
-- `map: add_one: +: expected String, found Number`
+- `concat: expected String, found Number on line 10`
+- `map: add_one: +: expected String, found Number on line 25`
+
+**Reading the Chain:**
+In the example `map: add_one: +: ...`, read from right to left (inner to outer):
+1. `+` failed (the actual operation)
+2. inside `add_one` (the function containing the operation)
+3. inside `map` (the builtin calling the function)
 
 **Advantages:**
+- **Precise location** - The line number and source context help you find the error quickly
 - **Direct causality** - The error chain shows exactly which function/operator failed
-- **No noise** - Single line, no hints or suggestions to parse
-- **Actionable** - When you know *which* function has the problem, you focus your debugging there
-- **Complements tools** - Errors point you to the problem, debugging tools show you the details
-
-The key insight: **short errors are better because they're easier to act on, especially when combined with debugging tools.**
+- **Actionable** - You know *where* and *what* the problem is
 
 ---
 
@@ -222,7 +230,7 @@ For understanding how the compiler processes your code, use the `--debug` comman
 **Usage:**
 
 ```bash
-avon --debug program.av
+avon eval program.av --debug
 ```
 
 **Output:** Shows three compilation phases:
@@ -255,10 +263,11 @@ avon --debug program.av
 avon eval program.av
 ```
 
-You get a simplified error message:
+You get an error message with line number:
 
 ```
-map: add_one: +: expected String, found Number
+map: add_one: +: expected String, found Number on line 25
+25 |    x + 1
 ```
 
 ### Step 2: Understand the Error
@@ -268,6 +277,7 @@ The error tells you:
 - **`add_one`** - called within add_one function  
 - **`+`** - in the + operator
 - **`expected String, found Number`** - type mismatch
+- **`on line 25`** - exact location
 
 **Action:** The error chain shows the problem is in `add_one` receiving the wrong type.
 
@@ -337,6 +347,68 @@ Re-run to confirm:
 ```bash
 avon eval program.av
 ```
+
+---
+
+## Common Pitfalls & Solutions
+
+### 1. Missing `in` keyword
+
+**Error:** `unexpected token: ...` or parser errors.
+
+**Cause:** `let` bindings must always be followed by `in`.
+
+**Wrong:**
+```avon
+let x = 1
+x + 1
+```
+
+**Correct:**
+```avon
+let x = 1 in
+x + 1
+```
+
+### 2. Template Quote Syntax
+
+**Error:** `expected '"' after opening braces`
+
+**Cause:** Templates must strictly follow the syntax `{"..."}` or `{{"..."}}`. You cannot use spaces between the brace and the quote.
+
+**Wrong:**
+```avon
+{ "hello" }
+```
+
+**Correct:**
+```avon
+{"hello"}
+```
+
+### 3. Number vs String in Arithmetic
+
+**Error:** `+: expected Number, found String`
+
+**Cause:** Avon does not auto-convert strings to numbers in math operations.
+
+**Wrong:**
+```avon
+"5" + 10
+```
+
+**Correct:**
+```avon
+to_int "5" + 10
+```
+
+### 4. Unmatched Braces in Templates
+
+**Error:** `unexpected EOF inside template`
+
+**Cause:** You opened a template with `{{"` but tried to close it with `}"` or used interpolation `{...}` inside a double-brace template without double braces.
+
+**Fix:** Ensure your interpolation delimiters match your template definition (see `tutorial/TUTORIAL.md` for the full Escape Hatch guide).
 
 ---
 
@@ -421,9 +493,40 @@ Shows each step of the accumulation:
 
 ---
 
+## Troubleshooting Deployment Issues
+
+### Path Errors
+
+If your files aren't appearing where you expect:
+
+1. **Check your paths**: Use `eval` to print the output without writing files.
+   ```bash
+   avon eval program.av
+   ```
+   This will show the full paths of files that *would* be created.
+
+2. **Check `--root`**: The `--root` flag prepends a directory to all paths.
+   ```avon
+   @/config.yml {"..."}
+   ```
+   With `--root ./out`, this writes to `./out/config.yml`.
+
+3. **Absolute vs Relative**: 
+   - Paths starting with `/` (e.g. `@/etc/config`) are absolute unless `--root` is used.
+   - With `--root`, the leading `/` is stripped and the path is appended to the root.
+
+### Permission Errors
+
+If you get "permission denied":
+
+1. **Directory creation**: Avon attempts to create parent directories. Ensure you have write permissions to the target directory.
+2. **Existing files**: If a file exists and you didn't use `--force`, Avon will warn you. If you don't have write permission to the existing file, `--force` will fail.
+
+---
+
 ## Best Practices
 
-### ✅ DO
+### Do This
 
 - **Use `trace` liberally** during development - label clearly ("input", "after step1", etc.)
 - **Chain traces** to see the flow of data through transformations
@@ -433,9 +536,9 @@ Shows each step of the accumulation:
 - **Keep `trace` calls in code** - they're cheap and help future debugging
 - **Test with `eval` first** - always verify logic before deploying with `--deploy`
 
-### ❌ DON'T
+### Don't Do This
 
-- **Ignore simplified error messages** - use them to know which function to debug
+- **Ignore error messages** - they point directly to the failing code with line numbers
 - **Expect pretty printing** - Avon shows simple, focused errors on purpose
 - **Assume data types** - use type checks to verify assumptions
 - **Nest traces too deeply** - use intermediate `let` bindings to keep code clear
@@ -450,7 +553,8 @@ Shows each step of the accumulation:
 Parse environment configuration from a dict but the dict structure is wrong:
 
 ```
-map: process_env: .: key not found: "timeout"
+map: process_env: .: key not found: "timeout" on line 42
+42 |    let timeout = env_dict.timeout in
 ```
 
 ### Investigation
@@ -494,7 +598,8 @@ Run to see:
 ```
 [TRACE] all envs: [{host: "localhost", port: 8080}, {host: "prod.example.com", port: 443}]
 [TRACE] processing dict: {host: "localhost", port: 8080}
-map: process_env: .: expected key 'timeout', found missing
+map: process_env: .: expected key 'timeout', found missing on line 42
+42 |    let timeout = env_dict.timeout in
 ```
 
 Ah! The dicts have `host` and `port`, but the code expects `timeout` and `retries`. The data structure doesn't match expectations.

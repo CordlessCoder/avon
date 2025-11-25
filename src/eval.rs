@@ -561,16 +561,17 @@ pub fn eval(
     symbols: &mut HashMap<String, Value>,
     source: &str,
 ) -> Result<Value, EvalError> {
+    let _line = expr.line();
     match expr {
-        Expr::Number(value) => Ok(Value::Number(value)),
-        Expr::String(value) => Ok(Value::String(value)),
-        Expr::Binary { lhs, op, rhs } => {
+        Expr::Number(value, _) => Ok(Value::Number(value)),
+        Expr::String(value, _) => Ok(Value::String(value)),
+        Expr::Binary { lhs, op, rhs, line } => {
             let l_eval = eval(*lhs.clone(), symbols, source)?;
             let r_eval = eval(*rhs.clone(), symbols, source)?;
 
             match op {
                 // handle logical operators
-                Token::And => match (l_eval.clone(), r_eval.clone()) {
+                Token::And(_) => match (l_eval.clone(), r_eval.clone()) {
                     (Value::Bool(lb), Value::Bool(rb)) => Ok(Value::Bool(lb && rb)),
                     (a, b) => {
                         let l_type = match a {
@@ -594,11 +595,11 @@ pub fn eval(
                             "and",
                             Some(l_type.to_string()),
                             Some(r_type.to_string()),
-                            0,
+                            line,
                         ))
                     }
                 },
-                Token::Or => match (l_eval.clone(), r_eval.clone()) {
+                Token::Or(_) => match (l_eval.clone(), r_eval.clone()) {
                     (Value::Bool(lb), Value::Bool(rb)) => Ok(Value::Bool(lb || rb)),
                     (a, b) => {
                         let l_type = match a {
@@ -622,11 +623,11 @@ pub fn eval(
                             "or",
                             Some(l_type.to_string()),
                             Some(r_type.to_string()),
-                            0,
+                            line,
                         ))
                     }
                 },
-                Token::Add => match (l_eval.clone(), r_eval.clone()) {
+                Token::Add(_) => match (l_eval.clone(), r_eval.clone()) {
                     (Value::Number(ln), Value::Number(rn)) => Ok(Value::Number(ln.add(rn))),
                     (Value::String(ls), Value::String(rs)) => {
                         let mut out = ls.clone();
@@ -683,18 +684,18 @@ pub fn eval(
                             "+",
                             Some(l_type.to_string()),
                             Some(r_type.to_string()),
-                            0,
+                            line,
                         ))
                     }
                 },
-                Token::Mul | Token::Div | Token::Sub => {
+                Token::Mul(_) | Token::Div(_) | Token::Sub(_) => {
                     let lnumber = match l_eval {
                         Value::Number(n) => n,
                         other => {
                             let op_name = match op {
-                                Token::Mul => "*",
-                                Token::Div => "/",
-                                Token::Sub => "-",
+                                Token::Mul(_) => "*",
+                                Token::Div(_) => "/",
+                                Token::Sub(_) => "-",
                                 _ => "unknown",
                             };
                             return Err(EvalError::type_mismatch(
@@ -706,7 +707,7 @@ pub fn eval(
                                     Value::Function { .. } => "function",
                                     _ => "unknown",
                                 },
-                                0,
+                                line,
                             ).with_context(op_name))
                         }
                     };
@@ -715,9 +716,9 @@ pub fn eval(
                         Value::Number(n) => n,
                         other => {
                             let op_name = match op {
-                                Token::Mul => "*",
-                                Token::Div => "/",
-                                Token::Sub => "-",
+                                Token::Mul(_) => "*",
+                                Token::Div(_) => "/",
+                                Token::Sub(_) => "-",
                                 _ => "unknown",
                             };
                             return Err(EvalError::type_mismatch(
@@ -729,25 +730,25 @@ pub fn eval(
                                     Value::Function { .. } => "function",
                                     _ => "unknown",
                                 },
-                                0,
+                                line,
                             ).with_context(op_name))
                         }
                     };
 
                     let res = match op {
-                        Token::Mul => Value::Number(lnumber.mul(rnumber)),
-                        Token::Div => Value::Number(lnumber.div(rnumber)),
-                        Token::Sub => Value::Number(lnumber.sub(rnumber)),
+                        Token::Mul(_) => Value::Number(lnumber.mul(rnumber)),
+                        Token::Div(_) => Value::Number(lnumber.div(rnumber)),
+                        Token::Sub(_) => Value::Number(lnumber.sub(rnumber)),
                         _ => unreachable!(),
                     };
                     Ok(res)
                 }
-                Token::DoubleEqual
-                | Token::NotEqual
-                | Token::Greater
-                | Token::Less
-                | Token::GreaterEqual
-                | Token::LessEqual => {
+                Token::DoubleEqual(_)
+                | Token::NotEqual(_)
+                | Token::Greater(_)
+                | Token::Less(_)
+                | Token::GreaterEqual(_)
+                | Token::LessEqual(_) => {
                     let eq = match (&l_eval, &r_eval) {
                         (Value::Number(ln), Value::Number(rn)) => {
                             let lval = match ln {
@@ -759,33 +760,33 @@ pub fn eval(
                                 Number::Float(f) => *f,
                             };
                             match op {
-                                Token::DoubleEqual => lval == rval,
-                                Token::NotEqual => lval != rval,
-                                Token::Greater => lval > rval,
-                                Token::Less => lval < rval,
-                                Token::GreaterEqual => lval >= rval,
-                                Token::LessEqual => lval <= rval,
+                                Token::DoubleEqual(_) => lval == rval,
+                                Token::NotEqual(_) => lval != rval,
+                                Token::Greater(_) => lval > rval,
+                                Token::Less(_) => lval < rval,
+                                Token::GreaterEqual(_) => lval >= rval,
+                                Token::LessEqual(_) => lval <= rval,
                                 _ => false,
                             }
                         }
                         (Value::String(ls), Value::String(rs)) => match op {
-                            Token::DoubleEqual => ls == rs,
-                            Token::NotEqual => ls != rs,
-                            Token::Greater => ls > rs,
-                            Token::Less => ls < rs,
-                            Token::GreaterEqual => ls >= rs,
-                            Token::LessEqual => ls <= rs,
+                            Token::DoubleEqual(_) => ls == rs,
+                            Token::NotEqual(_) => ls != rs,
+                            Token::Greater(_) => ls > rs,
+                            Token::Less(_) => ls < rs,
+                            Token::GreaterEqual(_) => ls >= rs,
+                            Token::LessEqual(_) => ls <= rs,
                             _ => false,
                         },
                         (Value::Bool(lb), Value::Bool(rb)) => match op {
-                            Token::DoubleEqual => lb == rb,
-                            Token::NotEqual => lb != rb,
+                            Token::DoubleEqual(_) => lb == rb,
+                            Token::NotEqual(_) => lb != rb,
                             _ => {
                                 return Err(EvalError::new(
                                     "invalid comparison for bool",
                                     None,
                                     None,
-                                    0,
+                                    line,
                                 ))
                             }
                         },
@@ -793,34 +794,33 @@ pub fn eval(
                             let sa = a.to_string(source);
                             let sb = b.to_string(source);
                             match op {
-                                Token::DoubleEqual => sa == sb,
-                                Token::NotEqual => sa != sb,
-                                Token::Greater => sa > sb,
-                                Token::Less => sa < sb,
-                                Token::GreaterEqual => sa >= sb,
-                                Token::LessEqual => sa <= sb,
+                                Token::DoubleEqual(_) => sa == sb,
+                                Token::NotEqual(_) => sa != sb,
+                                Token::Greater(_) => sa > sb,
+                                Token::Less(_) => sa < sb,
+                                Token::GreaterEqual(_) => sa >= sb,
+                                Token::LessEqual(_) => sa <= sb,
                                 _ => false,
                             }
                         }
                     };
                     Ok(Value::Bool(eq))
                 }
-                value => return Err(EvalError::new(format!("Not a valid operation: {:?}", value), None, None, 0)),
+                value => return Err(EvalError::new(format!("Not a valid operation: {:?}", value), None, None, line)),
             }
         }
-        Expr::Ident(ident) => {
+        Expr::Ident(ident, line) => {
             if let Some(value) = symbols.get(&ident) {
                 Ok(value.clone())
             } else {
                 Err(EvalError::unknown_symbol(
                     ident.clone(),
-                    0,
+                    line,
                 ))
             }
         }
-        Expr::Let { ident, value, expr } => {
+        Expr::Let { ident, value, expr, line: _ } => {
             let mut evalue = eval(*value, symbols, source)?;
-            // If the value is a function, set its name to the binding name
             if let Value::Function { ref mut name, .. } = evalue {
                 *name = Some(ident.clone());
             }
@@ -831,6 +831,7 @@ pub fn eval(
             ident,
             default,
             expr,
+            line: _,
         } => {
             let default_val = if let Some(def_expr_box) = default {
                 Some(Box::new(eval(*def_expr_box, symbols, source)?))
@@ -845,25 +846,14 @@ pub fn eval(
                 env: symbols.clone(),
             })
         }
-        Expr::Application { lhs, rhs } => {
+        Expr::Application { lhs, rhs, line } => {
             let lhs_eval = eval(*lhs, symbols, source)?;
             let arg_val = eval(*rhs, symbols, source)?;
             match lhs_eval {
-                Value::Function {
-                    name, ident, expr, env, ..
-                } => {
-                    let mut new_env = env.clone();
-                    new_env.insert(ident.clone(), arg_val);
-                    let func_name = name.as_ref().unwrap_or(&ident).clone();
-                    eval(*expr, &mut new_env, source).map_err(|mut err| {
-                        // Prepend function name to error message
-                        if !err.message.starts_with(&format!("{}:", func_name)) {
-                            err.message = format!("{}: {}", func_name, err.message);
-                        }
-                        err
-                    })
+                Value::Function { .. } => {
+                    apply_function(&lhs_eval, arg_val, source, line)
                 }
-                builtin @ Value::Builtin(_, _) => apply_function(&builtin, arg_val, source),
+                builtin @ Value::Builtin(_, _) => apply_function(&builtin, arg_val, source, line),
                 other => {
                     let type_name = match other {
                         Value::String(_) => "string",
@@ -876,36 +866,35 @@ pub fn eval(
                         "call",
                         Some("function".to_string()),
                         Some(type_name.to_string()),
-                        0,
+                        line,
                     ))
                 }
             }
         }
-        Expr::None => Ok(Value::None),
-        Expr::Template(chunks) => Ok(Value::Template(chunks, symbols.clone())),
-        Expr::Builtin(function, args) => match function.as_str() {
+        Expr::None(_) => Ok(Value::None),
+        Expr::Template(chunks, _) => Ok(Value::Template(chunks, symbols.clone())),
+        Expr::Builtin(function, args, line) => match function.as_str() {
             "concat" => {
                 let arg1 = symbols.get(&args[0]).cloned().ok_or_else(|| {
                     EvalError::unknown_symbol(
                         args[0].clone(),
-                        0,
+                        line,
                     )
                 })?;
 
                 let arg2 = symbols.get(&args[1]).cloned().ok_or_else(|| {
                     EvalError::unknown_symbol(
                         args[1].clone(),
-                        0,
+                        line,
                     )
                 })?;
-                // should be strings
-                // check types
+                
                 if let Value::String(_) = arg1 {
                 } else {
                     return Err(EvalError::type_mismatch(
                         "string",
                         arg1.to_string(source),
-                        0,
+                        line,
                     ));
                 }
                 if let Value::String(_) = arg2 {
@@ -913,7 +902,7 @@ pub fn eval(
                     return Err(EvalError::type_mismatch(
                         "string",
                         arg2.to_string(source),
-                        0,
+                        line,
                     ));
                 }
                 
@@ -925,14 +914,14 @@ pub fn eval(
                     (a, b) => Err(EvalError::type_mismatch(
                         "string",
                         format!("{}, {}", a.to_string(source), b.to_string(source)),
-                        0,
+                        line,
                     )),
                 }
             }
-            _ => Err(EvalError::new("unimplemented builtin", None, None, 0)),
+            _ => Err(EvalError::new("unimplemented builtin", None, None, line)),
         },
-        Expr::Bool(value) => Ok(Value::Bool(value)),
-        Expr::If { cond, t, f } => {
+        Expr::Bool(value, _) => Ok(Value::Bool(value)),
+        Expr::If { cond, t, f, line } => {
             let cond_eval = eval(*cond, symbols, source)?;
             if let Value::Bool(cond_value) = cond_eval {
                 if cond_value {
@@ -944,20 +933,19 @@ pub fn eval(
                 Err(EvalError::type_mismatch(
                     "bool",
                     cond_eval.to_string(source),
-                    0,
+                    line,
                 ))
             }
         }
-        Expr::Path(chunks) => Ok(Value::Path(chunks, symbols.clone())),
-        Expr::List(items) => {
+        Expr::Path(chunks, _) => Ok(Value::Path(chunks, symbols.clone())),
+        Expr::List(items, _) => {
             let mut evaluated = Vec::new();
             for item in items {
                 evaluated.push(eval(item, symbols, source)?);
             }
             Ok(Value::List(evaluated))
         }
-        Expr::Dict(pairs) => {
-            // Parse dict literal: {key:value, key:value, ...}
+        Expr::Dict(pairs, _) => {
             let mut map = HashMap::new();
             for (key, value_expr) in pairs {
                 let value = eval(value_expr, symbols, source)?;
@@ -965,7 +953,7 @@ pub fn eval(
             }
             Ok(Value::Dict(map))
         }
-        Expr::Member { object, field } => {
+        Expr::Member { object, field, line } => {
             let obj_val = eval(*object, symbols, source)?;
             match obj_val {
                 Value::Dict(map) => map.get(&field).cloned().ok_or_else(|| {
@@ -973,7 +961,7 @@ pub fn eval(
                         ".",
                         Some(format!("key '{}'", field)),
                         Some("missing".to_string()),
-                        0,
+                        line,
                     )
                 }),
                 other => Err(EvalError::type_mismatch(
@@ -986,26 +974,23 @@ pub fn eval(
                         Value::Function { .. } => "function",
                         _ => "unknown",
                     },
-                    0,
+                    line,
                 )),
             }
         }
-        Expr::FileTemplate { path, template } => Ok(Value::FileTemplate {
+        Expr::FileTemplate { path, template, line: _ } => Ok(Value::FileTemplate {
             path: (path, symbols.clone()),
             template: (template, symbols.clone()),
         }),
-        Expr::Pipe { lhs, rhs } => {
-            // Evaluate lhs to get a value
+        Expr::Pipe { lhs, rhs, line } => {
             let lhs_val = eval(*lhs, symbols, source)?;
-            // Evaluate rhs to get a function
             let rhs_fn = eval(*rhs, symbols, source)?;
-            // Apply the function to the value
-            apply_function(&rhs_fn, lhs_val, source)
+            apply_function(&rhs_fn, lhs_val, source, line)
         }
     }
 }
 
-pub fn apply_function(func: &Value, arg: Value, source: &str) -> Result<Value, EvalError> {
+pub fn apply_function(func: &Value, arg: Value, source: &str, line: usize) -> Result<Value, EvalError> {
     match func {
         Value::Function {
             name, ident, expr, env, ..
@@ -1014,7 +999,6 @@ pub fn apply_function(func: &Value, arg: Value, source: &str) -> Result<Value, E
             new_env.insert(ident.clone(), arg);
             let func_name = name.as_ref().unwrap_or(&ident).clone();
             eval(*expr.clone(), &mut new_env, source).map_err(|mut err| {
-                // Prepend function name to error message
                 if !err.message.starts_with(&format!("{}:", func_name)) {
                     err.message = format!("{}: {}", func_name, err.message);
                 }
@@ -1097,7 +1081,6 @@ pub fn apply_function(func: &Value, arg: Value, source: &str) -> Result<Value, E
                 "keys" => 1,
                 "values" => 1,
                 "has_key" => 2,
-                // Type checking
                 "typeof" => 1,
                 "is_string" => 1,
                 "is_number" => 1,
@@ -1107,9 +1090,7 @@ pub fn apply_function(func: &Value, arg: Value, source: &str) -> Result<Value, E
                 "is_bool" => 1,
                 "is_function" => 1,
                 "is_dict" => 1,
-                // Assertions
                 "assert" => 2,
-                // Debugging
                 "error" => 1,
                 "trace" => 2,
                 "debug" => 1,
@@ -1120,9 +1101,7 @@ pub fn apply_function(func: &Value, arg: Value, source: &str) -> Result<Value, E
                 return Ok(Value::Builtin(name.clone(), new_collected));
             }
 
-            // execute builtin (implementation continues in cli module or separate file)
-            execute_builtin(name, &new_collected, source).map_err(|mut err| {
-                // Prepend builtin name to error message
+            execute_builtin(name, &new_collected, source, line).map_err(|mut err| {
                 if !err.message.starts_with(&format!("{}:", name)) {
                     err.message = format!("{}: {}", name, err.message);
                 }
@@ -1141,13 +1120,13 @@ pub fn apply_function(func: &Value, arg: Value, source: &str) -> Result<Value, E
                 "call",
                 Some("function".to_string()),
                 Some(type_name.to_string()),
-                0,
+                line,
             ))
         }
     }
 }
 
-pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value, EvalError> {
+pub fn execute_builtin(name: &str, args: &[Value], source: &str, line: usize) -> Result<Value, EvalError> {
     match name {
         "concat" => {
             let a = &args[0];
@@ -1170,7 +1149,7 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
             if let Value::List(items) = list {
                 let mut out = Vec::new();
                 for item in items {
-                    let res = apply_function(func, item.clone(), source).map_err(|mut err| {
+                    let res = apply_function(func, item.clone(), source, line).map_err(|mut err| {
                         // Prepend map name if not already present
                         if !err.message.starts_with("map:") {
                             err.message = format!("map: {}", err.message);
@@ -1194,7 +1173,7 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
             if let Value::List(items) = list {
                 let mut out = Vec::new();
                 for item in items {
-                    let res = apply_function(func, item.clone(), source).map_err(|mut err| {
+                    let res = apply_function(func, item.clone(), source, line).map_err(|mut err| {
                         // Prepend filter name if not already present
                         if !err.message.starts_with("filter:") {
                             err.message = format!("filter: {}", err.message);
@@ -1228,14 +1207,14 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
             let list = &args[2];
             if let Value::List(items) = list {
                 for item in items {
-                    let step = apply_function(func, acc, source).map_err(|mut err| {
+                    let step = apply_function(func, acc, source, line).map_err(|mut err| {
                         // Prepend fold name if not already present
                         if !err.message.starts_with("fold:") {
                             err.message = format!("fold: {}", err.message);
                         }
                         err
                     })?;
-                    acc = apply_function(&step, item.clone(), source).map_err(|mut err| {
+                    acc = apply_function(&step, item.clone(), source, line).map_err(|mut err| {
                         // Prepend fold name if not already present
                         if !err.message.starts_with("fold:") {
                             err.message = format!("fold: {}", err.message);
@@ -1256,7 +1235,7 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
             let pathv = &args[0];
             let p = value_to_path_string(pathv, source)?;
             let data = std::fs::read_to_string(&p).map_err(|e| {
-                EvalError::new(format!("failed to import {}: {}", p, e), None, None, 0)
+                EvalError::new(format!("failed to import {}: {}", p, e), None, None, line)
             })?;
             let tokens = tokenize(data.clone())?;
             let ast = parse(tokens);
@@ -1268,7 +1247,7 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
             let pathv = &args[0];
             let p = value_to_path_string(pathv, source)?;
             let data = std::fs::read_to_string(&p).map_err(|e| {
-                EvalError::new(format!("failed to read {}: {}", p, e), None, None, 0)
+                EvalError::new(format!("failed to read {}: {}", p, e), None, None, line)
             })?;
             Ok(Value::String(data))
         }
@@ -1280,7 +1259,7 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
             let filename = value_to_path_string(pathv, source)?;
             // Read the template file
             let mut template = std::fs::read_to_string(&filename).map_err(|e| {
-                EvalError::new(format!("fill_template"), Some("file".to_string()), Some(e.to_string()), 0)
+                EvalError::new(format!("fill_template"), Some("file".to_string()), Some(e.to_string()), line)
             })?;
 
             // Process substitutions - accept both dict and list of pairs
@@ -1480,7 +1459,7 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
             let pathv = &args[0];
             let p = value_to_path_string(pathv, source)?;
             let data = std::fs::read_to_string(&p).map_err(|e| {
-                EvalError::new(format!("failed to read {}: {}", p, e), None, None, 0)
+                EvalError::new(format!("failed to read {}: {}", p, e), None, None, line)
             })?;
             let lines: Vec<Value> = data.lines().map(|s| Value::String(s.to_string())).collect();
             Ok(Value::List(lines))
@@ -1510,10 +1489,10 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
             let pathv = &args[0];
             if let Value::String(p) = pathv {
                 let data = std::fs::read_to_string(p).map_err(|e| {
-                    EvalError::new(format!("failed to read {}: {}", p, e), None, None, 0)
+                    EvalError::new(format!("failed to read {}: {}", p, e), None, None, line)
                 })?;
                 let jr: serde_json::Value = serde_json::from_str(&data).map_err(|e| {
-                    EvalError::new(format!("json parse error: {}", e), None, None, 0)
+                    EvalError::new(format!("json parse error: {}", e), None, None, line)
                 })?;
                 fn conv(j: &serde_json::Value) -> Value {
                     match j {
@@ -1892,7 +1871,7 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
                     .parse::<i64>()
                     .map(|i| Value::Number(Number::Int(i)))
                     .map_err(|_| {
-                        EvalError::new(format!("cannot convert '{}' to int", s), None, None, 0)
+                        EvalError::new(format!("cannot convert '{}' to int", s), None, None, line)
                     }),
                 Value::Bool(b) => Ok(Value::Number(Number::Int(if *b { 1 } else { 0 }))),
                 other => Err(EvalError::new(
@@ -1913,7 +1892,7 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
                     .parse::<f64>()
                     .map(|f| Value::Number(Number::Float(f)))
                     .map_err(|_| {
-                        EvalError::new(format!("cannot convert '{}' to float", s), None, None, 0)
+                        EvalError::new(format!("cannot convert '{}' to float", s), None, None, line)
                     }),
                 other => Err(EvalError::new(
                     format!("cannot convert {} to float", other.to_string(source)),
@@ -2171,7 +2150,7 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
                     let json_items: Vec<String> = items
                         .iter()
                         .map(
-                            |v| match execute_builtin("format_json", &vec![v.clone()], source) {
+                            |v| match execute_builtin("format_json", &vec![v.clone()], source, line) {
                                 Ok(Value::String(s)) => s,
                                 _ => v.to_string(source),
                             },
@@ -2361,7 +2340,7 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
             if let Value::List(items) = list {
                 let mut out = Vec::new();
                 for item in items {
-                    let res = apply_function(func, item.clone(), source).map_err(|mut err| {
+                    let res = apply_function(func, item.clone(), source, line).map_err(|mut err| {
                         // Prepend flatmap name if not already present
                         if !err.message.starts_with("flatmap:") {
                             err.message = format!("flatmap: {}", err.message);
@@ -2728,7 +2707,7 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
                         "\x1b[91massertion failed\x1b[0m\nvalue: {}",
                         debug_info
                     );
-                    Err(EvalError::new(message, None, None, 0))
+                    Err(EvalError::new(message, None, None, line))
                 }
                 other => Err(EvalError::type_mismatch(
                     "Bool",

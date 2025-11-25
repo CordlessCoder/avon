@@ -428,7 +428,7 @@ mod tests {
                     ident: _, default, ..
                 } => {
                     if let Some(def) = default {
-                        v = apply_function(&v, (**def).clone(), &data).expect("apply default");
+                        v = apply_function(&v, (**def).clone(), &data, 0).expect("apply default");
                         continue;
                     } else {
                         panic!("expected default to be present for test");
@@ -582,7 +582,7 @@ mod tests {
                     ident: _, default, ..
                 } => {
                     if let Some(def) = default {
-                        v = apply_function(&v, (**def).clone(), &prog).expect("apply default");
+                        v = apply_function(&v, (**def).clone(), &prog, 0).expect("apply default");
                         continue;
                     } else {
                         panic!("expected default to be present for test");
@@ -614,12 +614,12 @@ mod tests {
             match &v {
                 Value::Function { ident, default, .. } => {
                     if let Some(named_val) = deploy_named.remove(ident) {
-                        v = apply_function(&v, Value::String(named_val), &prog)
+                        v = apply_function(&v, Value::String(named_val), &prog, 0)
                             .expect("apply named");
                         continue;
                     } else if let Some(def) = default {
                         // if default present (not in this test), it would be applied
-                        v = apply_function(&v, (**def).clone(), &prog).expect("apply default");
+                        v = apply_function(&v, (**def).clone(), &prog, 0).expect("apply default");
                         continue;
                     } else {
                         panic!("missing argument in test (no positional args provided)");

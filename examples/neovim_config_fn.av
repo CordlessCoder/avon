@@ -6,7 +6,7 @@
 # Boolean flags: pass true/false. Strings: pass raw value. Numbers: pass integer.
 # Required: username. Optional with defaults: theme, profile, lsp, treesitter, telescope, leader, tab.
 
-\username 
+\username ? "user"
 \theme ? "tokyonight" 
 \profile ? "standard" 
 \lsp ? "true" 

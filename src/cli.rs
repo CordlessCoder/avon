@@ -1,5 +1,7 @@
-use crate::common::{EvalError, Value};
-use crate::eval::{apply_function, collect_file_templates, eval, fetch_git_raw, initial_builtins};
+use crate::common::Value;
+use crate::eval::{
+    apply_function, collect_file_templates, eval, fetch_git_raw, initial_builtins,
+};
 use crate::lexer::tokenize;
 use crate::parser::parse;
 use std::collections::HashMap;
@@ -188,639 +190,467 @@ fn print_builtin_docs() {
     println!("For more examples and tutorials, see: tutorial/TUTORIAL.md");
 }
 
-pub fn run_cli(args: Vec<String>) -> i32 {
-    let mut root_opt: Option<String> = None;
-    let mut git_opt: Option<String> = None;
-    let mut git_eval_opt: Option<String> = None;
-    let mut eval_input_opt: Option<String> = None;
-    let mut debug = false;
-    let mut cli_args: Vec<String> = Vec::new();
-    let mut i = 1;
+fn print_help() {
+    let help = r#"avon — evaluate and generate file templates
+
+Usage: avon <command> [args]
+
+Commands:
+  eval <file>        Evaluate a file and print the result
+  deploy <file>      Deploy generated templates to disk
+  run <code>         Evaluate code string directly
+  doc                Show builtin function reference
+  version            Show version information
+
+Options:
+  --root <dir>       Prepend <dir> to generated file paths (deploy only)
+  --force            Overwrite existing files (deploy only)
+  --append           Append to existing files instead of overwriting (deploy only)
+  --if-not-exists    Only write file if it doesn't exist (deploy only)
+  --git <url>        Use git raw URL as source file (for eval/deploy)
+  --debug            Enable detailed debug output (lexer/parser/eval)
+  -param value       Pass named arguments to main function
+
+Examples:
+  avon eval config.av
+  avon deploy config.av --root ./output
+  avon run 'map (\x x*2) [1,2,3]'
+  avon deploy --git user/repo/file.av --root ./out
+"#;
+    println!("{}", help);
+}
+
+#[derive(Debug)]
+struct CliOptions {
+    root: Option<String>,
+    force: bool,
+    append: bool,
+    if_not_exists: bool,
+    debug: bool,
+    git_url: Option<String>,
+    named_args: HashMap<String, String>,
+    pos_args: Vec<String>,
+    file: Option<String>,
+    code: Option<String>,
+}
+
+impl CliOptions {
+    fn new() -> Self {
+        Self {
+            root: None,
+            force: false,
+            append: false,
+            if_not_exists: false,
+            debug: false,
+            git_url: None,
+            named_args: HashMap::new(),
+            pos_args: Vec::new(),
+            file: None,
+            code: None,
+        }
+    }
+}
+
+fn parse_args(args: &[String], require_file: bool) -> Result<CliOptions, String> {
+    let mut opts = CliOptions::new();
+    let mut i = 0;
+
+    // First arg might be file if not flag
+    if require_file && i < args.len() && !args[i].starts_with("-") {
+        opts.file = Some(args[i].clone());
+        i += 1;
+    }
+
     while i < args.len() {
         match args[i].as_str() {
             "--root" => {
                 if i + 1 < args.len() {
-                    root_opt = Some(args[i + 1].clone());
+                    opts.root = Some(args[i + 1].clone());
                     i += 2;
-                    continue;
                 } else {
-                    eprintln!("--root requires a directory argument");
-                    return 1;
+                    return Err("--root requires a directory argument".to_string());
                 }
+            }
+            "--force" => {
+                opts.force = true;
+                i += 1;
+            }
+            "--append" => {
+                opts.append = true;
+                i += 1;
+            }
+            "--if-not-exists" => {
+                opts.if_not_exists = true;
+                i += 1;
+            }
+            "--debug" => {
+                opts.debug = true;
+                i += 1;
             }
             "--git" => {
                 if i + 1 < args.len() {
-                    git_opt = Some(args[i + 1].clone());
+                    opts.git_url = Some(args[i + 1].clone());
                     i += 2;
-                    continue;
                 } else {
-                    eprintln!("--git requires a repo/file argument");
-                    return 1;
+                    return Err("--git requires a repo/file argument".to_string());
                 }
             }
-            "--git-eval" => {
+            s if s.starts_with("-") => {
+                let key = s.trim_start_matches('-').to_string();
                 if i + 1 < args.len() {
-                    git_eval_opt = Some(args[i + 1].clone());
+                    opts.named_args.insert(key, args[i + 1].clone());
                     i += 2;
-                    continue;
                 } else {
-                    eprintln!("--git-eval requires a repo/file argument");
-                    return 1;
+                    return Err(format!("named argument {} missing value", key));
                 }
             }
-            "--eval-input" => {
-                if i + 1 < args.len() {
-                    eval_input_opt = Some(args[i + 1].clone());
-                    i += 2;
-                    continue;
+            s => {
+                // If we didn't get a file yet and require one, treat first non-flag as file
+                // This handles `avon eval --debug file.av` case
+                if require_file && opts.file.is_none() && opts.git_url.is_none() {
+                    opts.file = Some(s.to_string());
                 } else {
-                    eprintln!("--eval-input requires a code string argument");
-                    return 1;
+                    opts.pos_args.push(s.to_string());
                 }
-            }
-            "--debug" => {
-                debug = true;
                 i += 1;
-                continue;
             }
-            _ => {}
         }
-        cli_args.push(args[i].clone());
-        i += 1;
     }
 
-    // Handle --eval-input before other processing
-    if let Some(code) = eval_input_opt {
-        return run_eval_string(code, debug);
+    if require_file && opts.file.is_none() && opts.git_url.is_none() {
+        return Err("missing file argument (or --git)".to_string());
     }
 
-    if cli_args.len() > 0 {
-        // concise help shown for -h/--help (keep short and readable)
-        let help = r#"avon — evaluate and generate file templates
-
-Usage: avon [options] <command> [args]
-
-Commands:
-  eval <file>        Evaluate a file and print the result
-  --deploy           Deploy generated templates (provide args after --deploy)
-
-Options:
-  --force            Overwrite files during deploy
-  --append           Append to existing files instead of overwriting
-  --if-not-exists    Only write file if it doesn't exist
-  --root <dir>       Prepend <dir> to generated file paths
-  --git <repo/file>  Fetch and deploy from git raw URL (implies --deploy)
-  --git-eval <repo/file>  Fetch and evaluate from git raw URL
-  --eval-input <code>     Evaluate code string directly
-  --debug            Enable detailed debug output (lexer/parser/eval)
-  --doc              Show all builtin functions (with Haskell-style types)
-  -h, --help         Show this brief help
-
-Debugging Tools:
-  trace "label" value        Print labeled value to stderr, return value unchanged
-  debug value                Print internal structure to stderr
-  assert (test) value        Assert test is true, return value or error with debug info
-  Use with is_* predicates: assert (is_number x) x, assert (x > 0) x
-  See tutorial/DEBUGGING_GUIDE.md for complete debugging guide
-
-Examples:
-  avon eval myfile.av
-  avon myfile.av --deploy --root ./output
-  avon --git pyrotek45/avon/examples/site_generator.av --root ./site
-  avon --git-eval pyrotek45/avon/examples/test.av
-  avon --eval-input 'map (\x x * 2) [1, 2, 3]'
-  avon --eval-input 'typeof 42'
-"#;
-
-        if cli_args[0] == "--help" || cli_args[0] == "-h" {
-            println!("{}", help);
-            return 0;
-        }
-
-        if cli_args[0] == "--doc" {
-            print_builtin_docs();
-            return 0;
-        }
-
-        if cli_args[0] == "eval" {
-            return run_eval(cli_args, git_eval_opt.or(git_opt.clone()), debug);
-        }
-
-        // If --git is present, ensure we're in deploy mode
-        if git_opt.is_some() && !cli_args.contains(&"--deploy".to_string()) {
-            let mut deploy_args = vec!["dummy.av".to_string(), "--deploy".to_string()];
-            deploy_args.extend(cli_args);
-            return run_deploy_or_eval(deploy_args, root_opt, git_opt, debug);
-        }
-
-        return run_deploy_or_eval(cli_args, root_opt, git_opt, debug);
-    }
-
-    // Handle --git-eval without additional commands
-    if git_eval_opt.is_some() {
-        return run_eval(
-            vec!["eval".to_string(), "dummy.av".to_string()],
-            git_eval_opt,
-            debug,
-        );
-    }
-
-    // Handle --git without additional commands (defaults to deploy)
-    if git_opt.is_some() {
-        return run_deploy_or_eval(
-            vec!["dummy.av".to_string(), "--deploy".to_string()],
-            root_opt,
-            git_opt,
-            debug,
-        );
-    }
-
-    // short usage when no args supplied; keep it minimal
-    println!("Usage: avon <command> — run 'avon --help' for brief help");
-    0
+    Ok(opts)
 }
 
-fn run_eval_string(code: String, debug: bool) -> i32 {
-    if debug {
+pub fn run_cli(args: Vec<String>) -> i32 {
+    if args.len() < 2 {
+        print_help();
+        return 0;
+    }
+
+    let cmd = &args[1];
+    let rest = if args.len() > 2 { &args[2..] } else { &[] };
+
+    match cmd.as_str() {
+        "eval" => match parse_args(rest, true) {
+            Ok(opts) => execute_eval(opts),
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                1
+            }
+        },
+        "deploy" => match parse_args(rest, true) {
+            Ok(opts) => execute_deploy(opts),
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                1
+            }
+        },
+        "run" => {
+            if rest.is_empty() {
+                eprintln!("Error: run requires code string argument");
+                return 1;
+            }
+            let code = rest[0].clone();
+            // parse remaining flags like --debug
+            match parse_args(&rest[1..], false) {
+                 Ok(mut opts) => {
+                     opts.code = Some(code);
+                     execute_run(opts)
+                 },
+                 Err(e) => {
+                     eprintln!("Error: {}", e);
+                     1
+                 }
+            }
+        },
+        "doc" | "docs" => {
+            print_builtin_docs();
+            0
+        },
+        "version" | "--version" | "-v" => {
+            println!("avon 0.1.0");
+            0
+        },
+        "help" | "--help" | "-h" => {
+            print_help();
+            0
+        },
+        // Legacy / Convenience
+        _ => {
+            // If starts with --, it's likely a legacy flag command
+            if cmd.starts_with("--") {
+                match cmd.as_str() {
+                    "--git" => {
+                        // Legacy --git implies deploy
+                         let mut legacy_args = vec!["--git".to_string()];
+                         legacy_args.extend_from_slice(rest);
+                         match parse_args(&legacy_args, true) { // require_file=true satisfied by --git
+                            Ok(opts) => execute_deploy(opts),
+                            Err(e) => { eprintln!("Error: {}", e); 1 }
+                         }
+                    },
+                    "--git-eval" => {
+                         let mut legacy_args = vec!["--git".to_string()]; // map to git opt
+                         legacy_args.extend_from_slice(rest);
+                         match parse_args(&legacy_args, true) {
+                            Ok(opts) => execute_eval(opts),
+                            Err(e) => { eprintln!("Error: {}", e); 1 }
+                         }
+                    },
+                    "--eval-input" => {
+                        if rest.is_empty() {
+                             eprintln!("Error: --eval-input requires code string");
+                             return 1;
+                        }
+                        let code = rest[0].clone();
+                        match parse_args(&rest[1..], false) {
+                            Ok(mut opts) => {
+                                opts.code = Some(code);
+                                execute_run(opts)
+                            },
+                            Err(e) => { eprintln!("Error: {}", e); 1 }
+                        }
+                    },
+                    "--doc" => { print_builtin_docs(); 0 },
+                    _ => {
+                        eprintln!("Unknown flag: {}", cmd);
+                        print_help();
+                        1
+                    }
+                }
+            } else {
+                // Fallback: avon <file> [args]
+                // Check if --deploy exists in args to decide mode
+                let is_deploy = args.contains(&"--deploy".to_string());
+                // Filter out --deploy from args for parsing
+                let filtered_rest: Vec<String> = rest.iter().filter(|s| *s != "--deploy").cloned().collect();
+                
+                // We treat the command as the file
+                let mut eff_args = vec![cmd.clone()];
+                eff_args.extend(filtered_rest);
+
+                match parse_args(&eff_args, true) {
+                    Ok(opts) => {
+                        if is_deploy {
+                            execute_deploy(opts)
+                        } else {
+                            execute_eval(opts)
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        1
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn get_source(opts: &CliOptions) -> Result<(String, String), i32> {
+    if let Some(url) = &opts.git_url {
+        fetch_git_raw(url).map(|s| (s, url.clone())).map_err(|e| {
+            eprintln!("Failed to fetch git url: {}", e.message);
+            1
+        })
+    } else if let Some(file) = &opts.file {
+        std::fs::read_to_string(file)
+            .map(|s| (s, file.clone()))
+            .map_err(|e| {
+                eprintln!("Failed to read file {}: {}", file, e);
+                1
+            })
+    } else {
+        eprintln!("No source file provided");
+        Err(1)
+    }
+}
+
+fn process_source(
+    source: String,
+    source_name: String,
+    opts: CliOptions,
+    deploy_mode: bool,
+) -> i32 {
+    if opts.debug {
         eprintln!("[DEBUG] Starting lexer...");
     }
-    match tokenize(code.clone()) {
+    
+    match tokenize(source.clone()) {
         Ok(tokens) => {
-            if debug {
+            if opts.debug {
                 eprintln!("[DEBUG] Lexer produced {} tokens", tokens.len());
                 for (i, tok) in tokens.iter().enumerate() {
                     eprintln!("[DEBUG]   Token {}: {:?}", i, tok);
                 }
                 eprintln!("[DEBUG] Starting parser...");
             }
+            
             let ast = parse(tokens);
-            if debug {
+            if opts.debug {
                 eprintln!("[DEBUG] Parser produced AST: {:?}", ast);
                 eprintln!("[DEBUG] Starting evaluator...");
             }
+            
             let mut symbols = initial_builtins();
-            match eval(ast.program, &mut symbols, &code) {
-                Ok(v) => {
-                    match collect_file_templates(&v, &code) {
-                        Ok(files) => {
-                            for (path, content) in files {
-                                println!("--- {} ---", path);
-                                println!("{}", content);
+            match eval(ast.program, &mut symbols, &source) {
+                Ok(mut v) => {
+                    // Apply arguments logic
+                    // ... (Function application logic from old code) ...
+                    // We need to apply opts.named_args and opts.pos_args
+                    
+                    // If v is a function, try to apply args
+                    let mut pos_idx = 0;
+                    loop {
+                        match &v {
+                             Value::Function { ident, default, .. } => {
+                                 if let Some(named_val) = opts.named_args.get(ident) {
+                                     match apply_function(&v, Value::String(named_val.clone()), &source, 0) {
+                                         Ok(nv) => { v = nv; continue; },
+                                         Err(e) => { eprintln!("{}", e.pretty_with_file(&source, Some(&source_name))); return 1; }
+                                     }
+                                 } else if pos_idx < opts.pos_args.len() {
+                                     match apply_function(&v, Value::String(opts.pos_args[pos_idx].clone()), &source, 0) {
+                                         Ok(nv) => { v = nv; pos_idx += 1; continue; },
+                                         Err(e) => { eprintln!("{}", e.pretty_with_file(&source, Some(&source_name))); return 1; }
+                                     }
+                                 } else if let Some(def_box) = default {
+                                     match apply_function(&v, (**def_box).clone(), &source, 0) {
+                                         Ok(nv) => { v = nv; continue; },
+                                         Err(e) => { eprintln!("{}", e.pretty_with_file(&source, Some(&source_name))); return 1; }
+                                     }
+                                 } else {
+                                     eprintln!("missing argument for {}", ident);
+                                     return 1;
+                                 }
+                             },
+                             Value::Builtin(_, _) => {
+                                 if pos_idx < opts.pos_args.len() {
+                                     match apply_function(&v, Value::String(opts.pos_args[pos_idx].clone()), &source, 0) {
+                                         Ok(nv) => { v = nv; pos_idx += 1; continue; },
+                                         Err(e) => { eprintln!("{}", e.pretty_with_file(&source, Some(&source_name))); return 1; }
+                                     }
+                                 } else {
+                                     break;
+                                 }
+                             },
+                             _ => break,
+                        }
+                    }
+                    
+                    // Result handling
+                    if deploy_mode {
+                         match collect_file_templates(&v, &source) {
+                             Ok(files) => {
+                                 for (path, content) in files {
+                                     let write_path = if let Some(root) = &opts.root {
+                                         let rel = path.trim_start_matches('/');
+                                         std::path::Path::new(root).join(rel)
+                                     } else {
+                                         std::path::Path::new(&path).to_path_buf()
+                                     };
+                                     
+                                     let exists = write_path.exists();
+                                     
+                                     if opts.if_not_exists && exists {
+                                         println!("Skipped {} (exists)", write_path.display());
+                                         continue;
+                                     }
+                                     
+                                     if exists && !opts.force && !opts.append {
+                                         eprintln!("WARNING: File {} exists. Use --force to overwrite or --append to append.", write_path.display());
+                                         continue;
+                                     }
+                                     
+                                     if let Some(parent) = write_path.parent() {
+                                         std::fs::create_dir_all(parent).ok();
+                                     }
+                                     
+                                     if opts.append && exists {
+                                          use std::io::Write;
+                                          match std::fs::OpenOptions::new().append(true).open(&write_path) {
+                                              Ok(mut f) => {
+                                                  if let Err(e) = f.write_all(content.as_bytes()) {
+                                                      eprintln!("Failed to append to {}: {}", write_path.display(), e);
+                                                      return 1;
+                                                  }
+                                                  println!("Appended to {}", write_path.display());
+                                              },
+                                              Err(e) => {
+                                                  eprintln!("Failed to open {} for append: {}", write_path.display(), e);
+                                                  return 1;
+                                              }
+                                          }
+                                     } else {
+                                         if let Err(e) = std::fs::write(&write_path, content) {
+                                             eprintln!("Failed to write {}: {}", write_path.display(), e);
+                                             return 1;
+                                         }
+                                         if exists {
+                                             println!("Overwrote {}", write_path.display());
+                                         } else {
+                                             println!("Wrote {}", write_path.display());
+                                         }
+                                     }
+                                 }
+                             },
+                             Err(_) => {
+                                 // If deploy mode but result isn't files, just print string?
+                                 // Or error? Original code printed string if error collecting templates
+                                 // But collecting templates only errors if value is not list/filetemplate
+                                 println!("{}", v.to_string(&source)); 
+                             }
+                         }
+                    } else {
+                        // Eval mode
+                        match collect_file_templates(&v, &source) {
+                            Ok(files) => {
+                                for (path, content) in files {
+                                    println!("--- {} ---", path);
+                                    println!("{}", content);
+                                }
+                            },
+                            Err(_) => {
+                                println!("{}", v.to_string(&source));
                             }
                         }
-                        Err(_) => println!("{}", v.to_string(&code)),
                     }
                     0
-                }
+                },
                 Err(e) => {
-                    eprintln!("{}", e.pretty(&code));
+                    eprintln!("{}", e.pretty_with_file(&source, Some(&source_name)));
                     1
                 }
             }
-        }
+        },
         Err(e) => {
-            eprintln!("{}", e.pretty(&code));
+            eprintln!("{}", e.pretty_with_file(&source, Some(&source_name)));
             1
         }
     }
 }
 
-fn run_eval(cli_args: Vec<String>, git_opt: Option<String>, debug: bool) -> i32 {
-    if cli_args.len() < 2 {
-        eprintln!("eval requires a file path");
-        return 1;
-    }
-    let filepath = &cli_args[1];
-    let filepath_str = filepath.clone();
-    let mut eval_pos: Vec<String> = vec![];
-    let mut eval_named: HashMap<String, String> = HashMap::new();
-    if cli_args.len() > 2 {
-        let mut it = cli_args.iter().skip(2);
-        while let Some(tok) = it.next() {
-            if tok.starts_with('-') {
-                let key = tok.trim_start_matches('-').to_string();
-                if let Some(val) = it.next() {
-                    eval_named.insert(key, val.clone());
-                } else {
-                    eprintln!("named argument {} missing value", key);
-                    return 1;
-                }
-            } else {
-                eval_pos.push(tok.clone());
-            }
-        }
-    }
-    let file_result = if let Some(gspec) = git_opt.as_ref() {
-        fetch_git_raw(gspec)
-    } else {
-        std::fs::read_to_string(filepath).map_err(|e| {
-            EvalError::new(format!("failed to read {}: {}", filepath, e), None, None, 0)
-        })
-    };
-    match file_result {
-        Ok(file) => {
-            if debug {
-                eprintln!("[DEBUG] Starting lexer...");
-            }
-            match tokenize(file.clone()) {
-                Ok(tokens) => {
-                    if debug {
-                        eprintln!("[DEBUG] Lexer produced {} tokens", tokens.len());
-                        for (i, tok) in tokens.iter().enumerate() {
-                            eprintln!("[DEBUG]   Token {}: {:?}", i, tok);
-                        }
-                        eprintln!("[DEBUG] Starting parser...");
-                    }
-                    let ast = parse(tokens);
-                    if debug {
-                        eprintln!("[DEBUG] Parser produced AST: {:?}", ast);
-                        eprintln!("[DEBUG] Starting evaluator...");
-                    }
-                    let mut symbols = initial_builtins();
-                    match eval(ast.program, &mut symbols, &file) {
-                        Ok(mut v) => {
-                            if !eval_pos.is_empty() || !eval_named.is_empty() {
-                                let mut pos_idx: usize = 0;
-                                loop {
-                                    match &v {
-                                        Value::Function { ident, default, .. } => {
-                                            if let Some(named_val) = eval_named.remove(ident) {
-                                                match apply_function(
-                                                    &v,
-                                                    Value::String(named_val),
-                                                    &file,
-                                                ) {
-                                                    Ok(nv) => {
-                                                        v = nv;
-                                                        continue;
-                                                    }
-                                                    Err(e) => {
-                                                        eprintln!(
-                                                            "{}",
-                                                            e.pretty_with_file(
-                                                                &file,
-                                                                Some(&filepath_str)
-                                                            )
-                                                        );
-                                                        return 1;
-                                                    }
-                                                }
-                                            } else if pos_idx < eval_pos.len() {
-                                                match apply_function(
-                                                    &v,
-                                                    Value::String(eval_pos[pos_idx].clone()),
-                                                    &file,
-                                                ) {
-                                                    Ok(nv) => {
-                                                        v = nv;
-                                                        pos_idx += 1;
-                                                        continue;
-                                                    }
-                                                    Err(e) => {
-                                                        eprintln!(
-                                                            "{}",
-                                                            e.pretty_with_file(
-                                                                &file,
-                                                                Some(&filepath_str)
-                                                            )
-                                                        );
-                                                        return 1;
-                                                    }
-                                                }
-                                            } else if let Some(def_box) = default {
-                                                match apply_function(&v, (**def_box).clone(), &file)
-                                                {
-                                                    Ok(nv) => {
-                                                        v = nv;
-                                                        continue;
-                                                    }
-                                                    Err(e) => {
-                                                        eprintln!(
-                                                            "{}",
-                                                            e.pretty_with_file(
-                                                                &file,
-                                                                Some(&filepath_str)
-                                                            )
-                                                        );
-                                                        return 1;
-                                                    }
-                                                }
-                                            } else {
-                                                eprintln!("missing argument for {}", ident);
-                                                return 1;
-                                            }
-                                        }
-                                        Value::Builtin(_, _) => {
-                                            if pos_idx < eval_pos.len() {
-                                                match apply_function(
-                                                    &v,
-                                                    Value::String(eval_pos[pos_idx].clone()),
-                                                    &file,
-                                                ) {
-                                                    Ok(nv) => {
-                                                        v = nv;
-                                                        pos_idx += 1;
-                                                        continue;
-                                                    }
-                                                    Err(e) => {
-                                                        eprintln!(
-                                                            "{}",
-                                                            e.pretty_with_file(
-                                                                &file,
-                                                                Some(&filepath_str)
-                                                            )
-                                                        );
-                                                        return 1;
-                                                    }
-                                                }
-                                            } else {
-                                                break;
-                                            }
-                                        }
-                                        _ => break,
-                                    }
-                                }
-                            }
-
-                            match collect_file_templates(&v, &file) {
-                                Ok(files) => {
-                                    for (path, content) in files {
-                                        println!("--- {} ---", path);
-                                        println!("{}", content);
-                                    }
-                                }
-                                Err(_) => println!("{}", v.to_string(&file)),
-                            }
-                            return 0;
-                        }
-                        Err(e) => {
-                            eprintln!("{}", e.pretty_with_file(&file, Some(&filepath_str)));
-                            return 1;
-                        }
-                    }
-                }
-                Err(e) => {
-                    eprintln!("{}", e.pretty_with_file(&file, Some(&filepath_str)));
-                    return 1;
-                }
-            }
-        }
-        Err(e) => {
-            eprintln!("{}", e.pretty(""));
-            return 1;
-        }
+fn execute_eval(opts: CliOptions) -> i32 {
+    match get_source(&opts) {
+        Ok((source, name)) => process_source(source, name, opts, false),
+        Err(c) => c,
     }
 }
 
-fn run_deploy_or_eval(
-    cli_args: Vec<String>,
-    root_opt: Option<String>,
-    git_opt: Option<String>,
-    debug: bool,
-) -> i32 {
-    let filepath = &cli_args[0];
-    let force = cli_args.iter().any(|s| s == "--force");
-    let append = cli_args.iter().any(|s| s == "--append");
-    let if_not_exists = cli_args.iter().any(|s| s == "--if-not-exists");
-    let deploy_idx = cli_args.iter().position(|s| s == "--deploy");
-    let deploy_mode = deploy_idx.is_some();
-    let mut deploy_pos: Vec<String> = vec![];
-    let mut deploy_named: HashMap<String, String> = HashMap::new();
-    let mut bad_named_arg = false;
-    if let Some(idx) = deploy_idx {
-        let mut it = cli_args
-            .iter()
-            .skip(idx + 1)
-            .filter(|s| !s.starts_with("--"));
-        while let Some(tok) = it.next() {
-            if tok.starts_with('-') {
-                let key = tok.trim_start_matches('-').to_string();
-                if let Some(val) = it.next() {
-                    deploy_named.insert(key, val.clone());
-                } else {
-                    eprintln!("named argument {} missing value", key);
-                    bad_named_arg = true;
-                }
-            } else {
-                deploy_pos.push(tok.clone());
-            }
-        }
+fn execute_deploy(opts: CliOptions) -> i32 {
+    match get_source(&opts) {
+        Ok((source, name)) => process_source(source, name, opts, true),
+        Err(c) => c,
     }
-    if bad_named_arg {
-        return 1;
-    }
+}
 
-    let file_result = if let Some(gspec) = git_opt.as_ref() {
-        fetch_git_raw(gspec)
+fn execute_run(opts: CliOptions) -> i32 {
+    if let Some(code) = opts.code.clone() {
+        process_source(code, "<input>".to_string(), opts, false)
     } else {
-        std::fs::read_to_string(filepath).map_err(|e| {
-            EvalError::new(format!("failed to read {}: {}", filepath, e), None, None, 0)
-        })
-    };
-
-    match file_result {
-        Ok(file) => {
-            if debug {
-                eprintln!("[DEBUG] Starting lexer...");
-            }
-            match tokenize(file.clone()) {
-                Ok(tokens) => {
-                    if debug {
-                        eprintln!("[DEBUG] Lexer produced {} tokens", tokens.len());
-                        for (i, tok) in tokens.iter().enumerate() {
-                            eprintln!("[DEBUG]   Token {}: {:?}", i, tok);
-                        }
-                        eprintln!("[DEBUG] Starting parser...");
-                    }
-                    let ast = parse(tokens);
-                    if debug {
-                        eprintln!("[DEBUG] Parser produced AST: {:?}", ast);
-                        eprintln!("[DEBUG] Starting evaluator...");
-                    }
-                    let mut symbols = initial_builtins();
-
-                    match eval(ast.program, &mut symbols, &file) {
-                        Ok(v) => {
-                            if deploy_mode {
-                                let root = root_opt.clone();
-                                let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(
-                                    || {
-                                        let mut current = v;
-                                        let mut pos_idx: usize = 0;
-                                        loop {
-                                            match &current {
-                                                Value::Function { ident, default, .. } => {
-                                                    if let Some(named_val) =
-                                                        deploy_named.remove(ident)
-                                                    {
-                                                        current = apply_function(
-                                                            &current,
-                                                            Value::String(named_val),
-                                                            &file,
-                                                        )?;
-                                                        continue;
-                                                    } else if pos_idx < deploy_pos.len() {
-                                                        current = apply_function(
-                                                            &current,
-                                                            Value::String(
-                                                                deploy_pos[pos_idx].clone(),
-                                                            ),
-                                                            &file,
-                                                        )?;
-                                                        pos_idx += 1;
-                                                        continue;
-                                                    } else if let Some(def_box) = default {
-                                                        current = apply_function(
-                                                            &current,
-                                                            (**def_box).clone(),
-                                                            &file,
-                                                        )?;
-                                                        continue;
-                                                    } else {
-                                                        return Err(EvalError::new(
-                                                            format!("missing argument: {}", ident),
-                                                            None,
-                                                            None,
-                                                            0,
-                                                        ));
-                                                    }
-                                                }
-                                                Value::Builtin(_, _) => {
-                                                    if pos_idx < deploy_pos.len() {
-                                                        current = apply_function(
-                                                            &current,
-                                                            Value::String(
-                                                                deploy_pos[pos_idx].clone(),
-                                                            ),
-                                                            &file,
-                                                        )?;
-                                                        pos_idx += 1;
-                                                        continue;
-                                                    } else {
-                                                        break;
-                                                    }
-                                                }
-                                                _ => break,
-                                            }
-                                        }
-                                        let files = collect_file_templates(&current, &file)?;
-                                        for (path, content) in files {
-                                            let write_path = if let Some(rootdir) = root.as_ref() {
-                                                let rel = if path.starts_with('/') {
-                                                    path.trim_start_matches('/')
-                                                } else {
-                                                    &path
-                                                };
-                                                std::path::Path::new(rootdir).join(rel)
-                                            } else {
-                                                std::path::Path::new(&path).to_path_buf()
-                                            };
-
-                                            let file_exists = write_path.exists();
-
-                                            // Handle --if-not-exists: skip if file exists
-                                            if if_not_exists && file_exists {
-                                                eprintln!(
-                                                    "Skipped {} (already exists, --if-not-exists)",
-                                                    write_path.display()
-                                                );
-                                                continue;
-                                            }
-
-                                            // Handle existing files without --force, --append, or --if-not-exists
-                                            if file_exists && !force && !append {
-                                                eprintln!("WARNING: File {} already exists and was NOT written.", write_path.display());
-                                                eprintln!("         Use --force to overwrite, --append to append, or --if-not-exists to skip silently.");
-                                                continue;
-                                            }
-
-                                            if let Some(parent) = write_path.parent() {
-                                                std::fs::create_dir_all(parent).ok();
-                                            }
-
-                                            // Handle --append: append to existing file
-                                            if append && file_exists {
-                                                use std::io::Write;
-                                                let mut file = std::fs::OpenOptions::new()
-                                                .append(true)
-                                                .open(&write_path)
-                                                .map_err(|e| EvalError::new(format!("failed to open file for append: {}", e), None, None, 0))?;
-                                                file.write_all(content.as_bytes()).map_err(
-                                                    |e| {
-                                                        EvalError::new(
-                                                            format!(
-                                                                "failed to append to file: {}",
-                                                                e
-                                                            ),
-                                                            None,
-                                                            None,
-                                                            0,
-                                                        )
-                                                    },
-                                                )?;
-                                                println!("Appended to {}", write_path.display());
-                                            } else {
-                                                // Normal write or overwrite with --force
-                                                std::fs::write(&write_path, content).map_err(
-                                                    |e| {
-                                                        EvalError::new(
-                                                            format!("failed to write file: {}", e),
-                                                            None,
-                                                            None,
-                                                            0,
-                                                        )
-                                                    },
-                                                )?;
-                                                if file_exists {
-                                                    println!("Overwrote {}", write_path.display());
-                                                } else {
-                                                    println!("Wrote {}", write_path.display());
-                                                }
-                                            }
-                                        }
-                                        Ok::<(), EvalError>(())
-                                    },
-                                ));
-
-                                match res {
-                                    Ok(Ok(())) => {}
-                                    Ok(Err(e)) => {
-                                        eprintln!("Deployment error: {}", e.pretty(&file));
-                                        return 1;
-                                    }
-                                    Err(_) => {
-                                        eprintln!("Deployment panicked");
-                                        return 1;
-                                    }
-                                }
-                            } else {
-                                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                                    v.to_string(&file)
-                                })) {
-                                    Ok(s) => println!("{}", s),
-                                    Err(_) => {
-                                        eprintln!("Printing result panicked");
-                                        return 1;
-                                    }
-                                }
-                            }
-                            return 0;
-                        }
-                        Err(err) => {
-                            eprintln!("{}", err.pretty(&file));
-                            return 1;
-                        }
-                    }
-                }
-                Err(e) => {
-                    eprintln!("{}", e.pretty(&file));
-                    return 1;
-                }
-            }
-        }
-        Err(err) => {
-            eprintln!("{}", err.pretty(""));
-            return 1;
-        }
+        1
     }
 }

@@ -140,7 +140,7 @@ By allowing multiple opening braces, you can choose a delimiter that requires **
 
 **How it works:**
 
-Interpolation uses exactly the same number of leading braces as the template opening:
+Interpolation uses exactly the same number of leading braces as the template opener:
 
 ```
 @/single.txt {"Value: { 1 + 2 }"}        # interpolation with { }
@@ -152,14 +152,14 @@ To produce literal braces without starting interpolation, use one more brace tha
 
 | Template opener | Interpolation | Literal `{` | Literal `}` | When to use |
 |-----------------|--------------|-------------|-------------|---------|
-| `{`             | `{ expr }`   | `{{` → `{`  | `}}` → `}`  | Few/no braces in output (rarely needs escaping) |
-| `{{`            | `{{ expr }}` | `{{{` → `{` | `}}}` → `}` | Many braces in output (JSON, HCL, Terraform) |
-| `{{{`           | `{{{ expr }}}` | `{{{{` → `{` | `}}}}` → `}` | Output full of triple-braces (rare) |
+| `{`             | `{ expr }`   | `{{` -> `{`  | `}}` -> `}`  | Few/no braces in output (rarely needs escaping) |
+| `{{`            | `{{ expr }}` | `{{{` -> `{` | `}}}` -> `}` | Many braces in output (JSON, HCL, Terraform) |
+| `{{{`           | `{{{ expr }}}` | `{{{{` -> `{` | `}}}}` -> `}` | Output full of triple-braces (rare) |
 
 **General rule:** A run of k consecutive braces outputs (k - open_count) literal braces when k > open_count.
-- Single-brace: `{{` (2 braces) → 1 literal `{`, `{{{{` (4 braces) → 3 literals `{{{`
-- Double-brace: `{{{` (3 braces) → 1 literal `{`, `{{{{` (4 braces) → 2 literals `{{`
-- Triple-brace: `{{{{` (4 braces) → 1 literal `{`, `{{{{{` (5 braces) → 2 literals `{{`
+- Single-brace: `{{` (2 braces) -> 1 literal `{`, `{{{{` (4 braces) -> 3 literals `{{{`
+- Double-brace: `{{{` (3 braces) -> 1 literal `{`, `{{{{` (4 braces) -> 2 literals `{{`
+- Triple-brace: `{{{{` (4 braces) -> 1 literal `{`, `{{{{{` (5 braces) -> 2 literals `{{`
 
 **Choosing the right delimiter:**
 
@@ -363,7 +363,7 @@ content
 
 ## Builtins by Category
 
-### 📝 String Operations
+### String Operations
 
 | Function | Arity | Example | Result |
 |----------|-------|---------|--------|
@@ -385,7 +385,7 @@ content
 
 **Examples:** `examples/string_functions.av`, `examples/split_join.av`, `examples/new_functions_demo.av`
 
-### 🔍 String Predicates
+### String Predicates
 
 | Function | Arity | Purpose | Example | Result |
 |----------|-------|---------|---------|--------|
@@ -397,16 +397,16 @@ content
 | `is_lowercase` | 1 | Check if all chars are lowercase | `is_lowercase "abc"` | `true` |
 | `is_empty` | 1 | Check if string or list is empty | `is_empty ""` | `true` |
 
-### 📊 List Operations
+### List Operations
 
 | Function | Arity | Purpose | Example |
 |----------|-------|---------|---------|
-| `map` | 2 | Transform each item | `map (\x x + 1) [1,2,3]` → `[2,3,4]` |
-| `filter` | 2 | Keep matching items | `filter (\x x > 2) [1,2,3]` → `[3]` |
-| `fold` | 3 | Reduce to value | `fold (\a \x a + x) 0 [1,2,3]` → `6` |
-| `flatmap` | 2 | Map then flatten | `flatmap (\x [x,x]) [1,2]` → `[1,1,2,2]` |
-| `flatten` | 1 | Flatten one level | `flatten [[1,2],[3]]` → `[1,2,3]` |
-| `length` | 1 | Count items | `length [1,2,3]` → `3` |
+| `map` | 2 | Transform each item | `map (\x x + 1) [1,2,3]` -> `[2,3,4]` |
+| `filter` | 2 | Keep matching items | `filter (\x x > 2) [1,2,3]` -> `[3]` |
+| `fold` | 3 | Reduce to value | `fold (\a \x a + x) 0 [1,2,3]` -> `6` |
+| `flatmap` | 2 | Map then flatten | `flatmap (\x [x,x]) [1,2]` -> `[1,1,2,2]` |
+| `flatten` | 1 | Flatten one level | `flatten [[1,2],[3]]` -> `[1,2,3]` |
+| `length` | 1 | Count items | `length [1,2,3]` -> `3` |
 
 **Examples:** `examples/map_example.av`, `examples/filter_example.av`, `examples/fold_example.av`, `examples/map_filter_fold.av`
 
@@ -416,11 +416,11 @@ Avon provides a first-class Dict type for structured data with key-value pairs:
 
 | Function | Arity | Purpose | Example |
 |----------|-------|---------|---------|
-| `get` | 2 | Get value by key | `get {name: "Alice"} "name"` → `"Alice"` |
-| `set` | 3 | Update or add key | `set {a: 1} "b" 2` → `{a: 1, b: 2}` |
-| `keys` | 1 | Extract all keys | `keys {a: 1, b: 2}` → `["a", "b"]` |
-| `values` | 1 | Extract all values | `values {a: 1, b: 2}` → `[1, 2]` |
-| `has_key` | 2 | Check if key exists | `has_key {a: 1} "a"` → `true` |
+| `get` | 2 | Get value by key | `get {name: "Alice"} "name"` -> `"Alice"` |
+| `set` | 3 | Update or add key | `set {a: 1} "b" 2` -> `{a: 1, b: 2}` |
+| `keys` | 1 | Extract all keys | `keys {a: 1, b: 2}` -> `["a", "b"]` |
+| `values` | 1 | Extract all values | `values {a: 1, b: 2}` -> `[1, 2]` |
+| `has_key` | 2 | Check if key exists | `has_key {a: 1} "a"` -> `true` |
 
 **Dict Syntax:**  
 Dictionaries use curly braces with colon notation:
@@ -452,7 +452,7 @@ has_key data "version"              # true
 
 **Examples:** `examples/dict_operations.av`, `examples/json_map_demo.av`
 
-### �📁 File & Filesystem
+### File & Filesystem
 
 | Function | Arity | Purpose |
 |----------|-------|---------|
@@ -472,7 +472,7 @@ fill_template "template.txt" subs
 # Result: "Hello, Alice! Email: alice@example.com"
 ```
 
-### 🌐 HTML Generation
+### HTML Generation
 
 | Function | Arity | Purpose | Example | Result |
 |----------|-------|---------|---------|--------|
@@ -482,7 +482,7 @@ fill_template "template.txt" subs
 
 **Examples:** `examples/html_page_gen.av`, `examples/site_generator.av`
 
-### 📝 Markdown Generation
+### Markdown Generation
 
 | Function | Arity | Purpose | Example | Result |
 |----------|-------|---------|---------|--------|
@@ -493,7 +493,7 @@ fill_template "template.txt" subs
 
 **Examples:** `examples/markdown_readme_gen.av`
 
-### � Type Checking & Validation
+### Type Checking & Validation
 
 Avon provides comprehensive type introspection and validation utilities:
 
@@ -582,16 +582,16 @@ in
 
 **Examples:** `examples/type_checking_demo.av`
 
-### �🔧 Type Conversion
+### Type Conversion
 
 | Function | Arity | Purpose | Example |
 |----------|-------|---------|---------|
-| `to_string` | 1 | Convert to string | `to_string 42` → `"42"` |
-| `to_int` | 1 | Convert to integer | `to_int "42"` → `42` |
-| `to_float` | 1 | Convert to float | `to_float "3.14"` → `3.14` |
-| `to_bool` | 1 | Convert to boolean | `to_bool "yes"` → `true` |
+| `to_string` | 1 | Convert to string | `to_string 42` -> `"42"` |
+| `to_int` | 1 | Convert to integer | `to_int "42"` -> `42` |
+| `to_float` | 1 | Convert to float | `to_float "3.14"` -> `3.14` |
+| `to_bool` | 1 | Convert to boolean | `to_bool "yes"` -> `true` |
 
-### 🎨 Formatting Functions
+### Formatting Functions
 
 Avon provides a comprehensive suite of 15 formatting functions for various data types:
 
@@ -626,12 +626,12 @@ Avon provides a comprehensive suite of 15 formatting functions for various data 
 | `center` | 2 | Center-align | `center "Hi" 10` | `"    Hi    "` |
 
 **Boolean Format Styles:**
-- `"yes/no"` → Yes/No
-- `"on/off"` → On/Off
-- `"enabled"` → Enabled/Disabled
-- `"active"` → Active/Inactive
-- `"success"` → Success/Failure
-- `"1/0"` → 1/0
+- `"yes/no"` -> Yes/No
+- `"on/off"` -> On/Off
+- `"enabled"` -> Enabled/Disabled
+- `"active"` -> Active/Inactive
+- `"success"` -> Success/Failure
+- `"1/0"` -> 1/0
 
 **Examples:**
 ```avon
@@ -659,15 +659,15 @@ center "Title" 20                  # "       Title        "
 
 **Full Demo:** `examples/formatting_demo.av`
 
-### 📊 Data & Utilities
+### Data & Utilities
 
 | Function | Arity | Purpose | Example |
 |----------|-------|---------|---------|
 | `import` | 1 | Load another `.av` file | `import "lib.av"` |
-| `json_parse` | 1 | Parse JSON (objects → dicts, arrays → lists) | `json_parse "{\"x\": 1}"` → `{x: 1}` |
-| `os` | 0 | Get operating system | `os` → `"linux"`, `"windows"`, `"macos"` |
+| `json_parse` | 1 | Parse JSON (objects -> dicts, arrays -> lists) | `json_parse "{\"x\": 1}"` -> `{x: 1}` |
+| `os` | 0 | Get operating system | `os` -> `"linux"`, `"windows"`, `"macos"` |
 
-**Note:** `json_parse` converts JSON objects to Dict types (e.g., `{"a": 1}` → `{a: 1}`), which support dot notation access like `data.a` and functions like `dict_keys`, `dict_values`, etc.
+**Note:** `json_parse` converts JSON objects to Dict types (e.g., `{"a": 1}` -> `{a: 1}`), which support dot notation access like `data.a` and functions like `dict_keys`, `dict_values`, etc.
 
 **Examples:** `examples/import_example.av`, `examples/json_map_demo.av`
 
@@ -760,24 +760,23 @@ Runs the program and prints the result.
 
 ### Deploy Files
 ```bash
-avon examples/site_generator.av --deploy --root ./website --force
+avon deploy examples/site_generator.av --root ./website --force
 ```
 
 Deploy the program, generate files in the specified directory.
 
 **Flags:**
-- `--deploy` — Generate files from file templates
-- `-param value` — Named argument (e.g., `-name Alice`)
 - `--root <dir>` — Prepend to all generated paths
 - `--force` — Overwrite existing files without warning
 - `--append` — Append to existing files instead of overwriting
 - `--if-not-exists` — Only write file if it doesn't already exist
+- `-param value` — Named argument (e.g., `-name Alice`)
 - **Default**: Files are NOT overwritten; a clear warning is shown instead
 
 ### Quick Eval from Command Line
 ```bash
-avon --eval-input 'map (\x x * 2) [1, 2, 3]'
-avon --eval-input 'typeof 42'
+avon run 'map (\x x * 2) [1, 2, 3]'
+avon run 'typeof 42'
 ```
 
 Evaluate code directly without writing a file.
@@ -785,10 +784,10 @@ Evaluate code directly without writing a file.
 ### Debugging & Documentation
 ```bash
 # Show debug output from lexer, parser, and evaluator
-avon program.av --debug
+avon eval program.av --debug
 
-# Show all builtin functions with types
-avon --doc
+# Show all builtin function documentation
+avon doc
 ```
 
 The `--debug` flag shows detailed tokenization, parsing, and evaluation steps, helpful for troubleshooting complex programs.
@@ -797,21 +796,21 @@ The `--debug` flag shows detailed tokenization, parsing, and evaluation steps, h
 
 **Deploy from GitHub** (automatic deployment):
 ```bash
-avon --git pyrotek45/avon/examples/site_generator.av --root ./out
+avon deploy --git pyrotek45/avon/examples/site_generator.av --root ./out
 ```
 
 **Evaluate from GitHub** (just run and print):
 ```bash
-avon --git-eval pyrotek45/avon/examples/string_functions.av
+avon eval --git pyrotek45/avon/examples/string_functions.av
 ```
 
-Fetch and run programs directly from GitHub's raw content CDN. The `--git` flag automatically deploys, while `--git-eval` evaluates and prints the result.
+Fetch and run programs directly from GitHub's raw content CDN.
 
 ---
 
 ## Real-World Examples by Use Case
 
-### 🌐 Web Development
+### Web Development
 
 **Site Generator:** `examples/site_generator.av`
 - Generate HTML pages with shared layouts
@@ -823,7 +822,7 @@ Fetch and run programs directly from GitHub's raw content CDN. The `--git` flag 
 - Conditional dependencies
 - Custom scripts
 
-### ⚙️ Configuration & Infrastructure
+### Configuration & Infrastructure
 
 **Docker Compose:** `examples/docker_compose_gen.av`
 - Multi-service setup
@@ -840,7 +839,7 @@ Fetch and run programs directly from GitHub's raw content CDN. The `--git` flag 
 - Conditional jobs
 - Multi-file generation
 
-### 🛠️ Tool Configuration
+### Tool Configuration
 
 **Neovim Config:** `examples/neovim_init.av`
 - Plugin management
@@ -858,20 +857,20 @@ Fetch and run programs directly from GitHub's raw content CDN. The `--git` flag 
 
 | Example | Features Shown | Complexity |
 |---------|----------------|------------|
-| `test.av` | Basics, lists | ⭐ |
-| `nested_let.av` | Let bindings | ⭐ |
-| `list_insert.av` | Lists, templates | ⭐⭐ |
-| `map_example.av` | Map, filter | ⭐⭐ |
-| `fold_example.av` | Fold operation | ⭐⭐ |
-| `function_defaults.av` | Functions, defaults | ⭐⭐ |
-| `string_functions.av` | String builtins | ⭐⭐ |
-| `conditionals_template.av` | If/then/else in templates | ⭐⭐ |
-| `site_generator.av` | Multi-file generation | ⭐⭐⭐ |
-| `neovim_init.av` | Complex config, conditionals | ⭐⭐⭐ |
-| `emacs_init.av` | Feature toggles, filtering | ⭐⭐⭐ |
-| `docker_compose_gen.av` | Multi-service templates | ⭐⭐⭐ |
-| `kubernetes_gen.av` | Complex multi-file output | ⭐⭐⭐ |
-| `github_actions_gen.av` | Conditional YAML generation | ⭐⭐⭐ |
+| `test.av` | Basics, lists | * |
+| `nested_let.av` | Let bindings | * |
+| `list_insert.av` | Lists, templates | ** |
+| `map_example.av` | Map, filter | ** |
+| `fold_example.av` | Fold operation | ** |
+| `function_defaults.av` | Functions, defaults | ** |
+| `string_functions.av` | String builtins | ** |
+| `conditionals_template.av` | If/then/else in templates | ** |
+| `site_generator.av` | Multi-file generation | *** |
+| `neovim_init.av` | Complex config, conditionals | *** |
+| `emacs_init.av` | Feature toggles, filtering | *** |
+| `docker_compose_gen.av` | Multi-service templates | *** |
+| `kubernetes_gen.av` | Complex multi-file output | *** |
+| `github_actions_gen.av` | Conditional YAML generation | *** |
 
 ---
 
@@ -937,8 +936,8 @@ Instead of deeply nested expressions, use `let` to name intermediate values.
 ### 2. Debug with Eval
 Always test with `eval` before deploying:
 ```bash
-avon program.av             # Check output first
-avon program.av --deploy    # Then generate files
+avon eval program.av             # Check output first
+avon deploy program.av --force   # Then generate files
 ```
 
 ### 3. Template Indentation for Readability
@@ -980,4 +979,4 @@ For most use cases (100s of files), Avon runs in milliseconds.
 
 ---
 
-Have fun generating! 🚀 For more details, see `tutorial/TUTORIAL.md`.
+Have fun generating! For more details, see `tutorial/TUTORIAL.md`.

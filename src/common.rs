@@ -9,54 +9,92 @@ pub enum Chunk {
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
-    Int(i64),
-    Float(f64),
-    String(String),
-    Identifier(String),
-    Template(Vec<Chunk>),
-    Path(Vec<Chunk>),
-    Greater,
-    Less,
-    GreaterEqual,
-    LessEqual,
-    NotEqual,
-    Mul,
-    Div,
-    Add,
-    Sub,
-    Dot,
-    Equal,
-    DoubleEqual,
-    DoubleDot,
-    And,
-    Or,
-    LParen,
-    RParen,
-    LBracket,
-    RBracket,
-    LBrace,
-    RBrace,
-    Comma,
-    Colon,
-    Question,
-    At,
-    BackSlash,
-    Pipe,
+    Int(i64, usize),
+    Float(f64, usize),
+    String(String, usize),
+    Identifier(String, usize),
+    Template(Vec<Chunk>, usize),
+    Path(Vec<Chunk>, usize),
+    Greater(usize),
+    Less(usize),
+    GreaterEqual(usize),
+    LessEqual(usize),
+    NotEqual(usize),
+    Mul(usize),
+    Div(usize),
+    Add(usize),
+    Sub(usize),
+    Dot(usize),
+    Equal(usize),
+    DoubleEqual(usize),
+    DoubleDot(usize),
+    And(usize),
+    Or(usize),
+    LParen(usize),
+    RParen(usize),
+    LBracket(usize),
+    RBracket(usize),
+    LBrace(usize),
+    RBrace(usize),
+    Comma(usize),
+    Colon(usize),
+    Question(usize),
+    At(usize),
+    BackSlash(usize),
+    Pipe(usize),
 }
 
 impl Token {
+    pub fn line(&self) -> usize {
+        match self {
+            Token::Int(_, l) => *l,
+            Token::Float(_, l) => *l,
+            Token::String(_, l) => *l,
+            Token::Identifier(_, l) => *l,
+            Token::Template(_, l) => *l,
+            Token::Path(_, l) => *l,
+            Token::Greater(l) => *l,
+            Token::Less(l) => *l,
+            Token::GreaterEqual(l) => *l,
+            Token::LessEqual(l) => *l,
+            Token::NotEqual(l) => *l,
+            Token::Mul(l) => *l,
+            Token::Div(l) => *l,
+            Token::Add(l) => *l,
+            Token::Sub(l) => *l,
+            Token::Dot(l) => *l,
+            Token::Equal(l) => *l,
+            Token::DoubleEqual(l) => *l,
+            Token::DoubleDot(l) => *l,
+            Token::And(l) => *l,
+            Token::Or(l) => *l,
+            Token::LParen(l) => *l,
+            Token::RParen(l) => *l,
+            Token::LBracket(l) => *l,
+            Token::RBracket(l) => *l,
+            Token::LBrace(l) => *l,
+            Token::RBrace(l) => *l,
+            Token::Comma(l) => *l,
+            Token::Colon(l) => *l,
+            Token::Question(l) => *l,
+            Token::At(l) => *l,
+            Token::BackSlash(l) => *l,
+            Token::Pipe(l) => *l,
+        }
+    }
+
     pub fn is_term_op(&self) -> bool {
         match self {
-            Token::Add => true,
-            Token::Sub => true,
+            Token::Add(_) => true,
+            Token::Sub(_) => true,
             _ => false,
         }
     }
 
     pub fn is_factor_op(&self) -> bool {
         match self {
-            Token::Mul => true,
-            Token::Div => true,
+            Token::Mul(_) => true,
+            Token::Div(_) => true,
             _ => false,
         }
     }
@@ -118,52 +156,85 @@ impl Number {
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum Expr {
-    None,
-    Bool(bool),
-    Ident(String),
+    None(usize),
+    Bool(bool, usize),
+    Ident(String, usize),
     Let {
         ident: String,
         value: Box<Expr>,
         expr: Box<Expr>,
+        line: usize,
     },
     Function {
         ident: String,
         default: Option<Box<Expr>>,
         expr: Box<Expr>,
+        line: usize,
     },
     Application {
         lhs: Box<Expr>,
         rhs: Box<Expr>,
+        line: usize,
     },
-    Number(Number),
-    String(String),
-    Template(Vec<Chunk>),
-    Path(Vec<Chunk>),
+    Number(Number, usize),
+    String(String, usize),
+    Template(Vec<Chunk>, usize),
+    Path(Vec<Chunk>, usize),
     FileTemplate {
         path: Vec<Chunk>,
         template: Vec<Chunk>,
+        line: usize,
     },
-    List(Vec<Expr>),
-    Dict(Vec<(String, Expr)>),
-    Builtin(String, Vec<String>),
+    List(Vec<Expr>, usize),
+    Dict(Vec<(String, Expr)>, usize),
+    Builtin(String, Vec<String>, usize),
     If {
         cond: Box<Expr>,
         t: Box<Expr>,
         f: Box<Expr>,
+        line: usize,
     },
     Binary {
         lhs: Box<Expr>,
         op: Token,
         rhs: Box<Expr>,
+        line: usize,
     },
     Member {
         object: Box<Expr>,
         field: String,
+        line: usize,
     },
     Pipe {
         lhs: Box<Expr>,
         rhs: Box<Expr>,
+        line: usize,
     },
+}
+
+impl Expr {
+    pub fn line(&self) -> usize {
+        match self {
+            Expr::None(l) => *l,
+            Expr::Bool(_, l) => *l,
+            Expr::Ident(_, l) => *l,
+            Expr::Let { line, .. } => *line,
+            Expr::Function { line, .. } => *line,
+            Expr::Application { line, .. } => *line,
+            Expr::Number(_, l) => *l,
+            Expr::String(_, l) => *l,
+            Expr::Template(_, l) => *l,
+            Expr::Path(_, l) => *l,
+            Expr::FileTemplate { line, .. } => *line,
+            Expr::List(_, l) => *l,
+            Expr::Dict(_, l) => *l,
+            Expr::Builtin(_, _, l) => *l,
+            Expr::If { line, .. } => *line,
+            Expr::Binary { line, .. } => *line,
+            Expr::Member { line, .. } => *line,
+            Expr::Pipe { line, .. } => *line,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -326,19 +397,44 @@ impl EvalError {
         String::new()
     }
 
-    pub fn pretty(&self, _source: &str) -> String {
-        self.format_simple()
+    #[allow(dead_code)]
+    pub fn pretty(&self, source: &str) -> String {
+        let mut out = self.format_simple();
+        if self.line > 0 {
+            if let Some(line_str) = source.lines().nth(self.line - 1) {
+                out.push('\n');
+                out.push_str(&format!("{:4} | {}", self.line, line_str));
+            }
+        }
+        out
     }
 
-    pub fn pretty_with_file(&self, _source: &str, _filename: Option<&str>) -> String {
-        self.format_simple()
+    pub fn pretty_with_file(&self, source: &str, filename: Option<&str>) -> String {
+        let mut out = self.format_simple();
+        if let Some(fname) = filename {
+            if self.line > 0 {
+                out.push_str(&format!(" in {}", fname));
+            }
+        }
+        if self.line > 0 {
+            if let Some(line_str) = source.lines().nth(self.line - 1) {
+                out.push('\n');
+                out.push_str(&format!("{:4} | {}", self.line, line_str));
+            }
+        }
+        out
     }
 
     fn format_simple(&self) -> String {
-        if let (Some(exp), Some(found)) = (self.expected.as_ref(), self.found.as_ref()) {
-            format!("{}: expected {}, found {}", self.message, exp, found)
+        let loc = if self.line > 0 {
+            format!(" on line {}", self.line)
         } else {
-            self.message.clone()
+            String::new()
+        };
+        if let (Some(exp), Some(found)) = (self.expected.as_ref(), self.found.as_ref()) {
+            format!("{}: expected {}, found {}{}", self.message, exp, found, loc)
+        } else {
+            format!("{}{}", self.message, loc)
         }
     }
 }

@@ -12,7 +12,7 @@ This guide describes the recommended formatting conventions for writing Avon cod
 
 ## Template Formatting
 
-### ✅ Template on Same Line as `in`
+### Template on Same Line as `in`
 
 **Preferred:**
 ```avon
@@ -32,7 +32,7 @@ Hello, {name}!
 
 **Reason:** The template opening `{"` must appear on the same line as the path `@/file`. This is a syntax requirement in Avon.
 
-### ✅ Indent Template Content (Leverage Automatic Dedent)
+### Indent Template Content (Leverage Automatic Dedent)
 
 **Preferred:**
 ```avon
@@ -43,18 +43,6 @@ Hello, {name}!
   database:
     name: myapp
 "}
-```
-
-**Also Good:**
-```avon
-let config = "
-  server:
-    host: localhost
-    port: 8080
-  database:
-    name: myapp
-" in
-@/config.yml config
 ```
 
 **Avoid:**
@@ -139,7 +127,7 @@ Avon finds the **first line with non-whitespace content** and uses its indentati
 
 ### Best Practices
 
-**✅ Indent for code clarity:**
+**Indent for code clarity:**
 ```avon
 let make_yaml = \name @/config.yml {"
   app:
@@ -159,7 +147,7 @@ app:
     port: 5432
 ```
 
-**✅ Deeply nested templates stay readable:**
+**Deeply nested templates stay readable:**
 ```avon
 let environments = ["dev", "staging"] in
 let make_deploy = \env {
@@ -176,7 +164,7 @@ map make_deploy environments
 
 Even though the template is 4+ levels deep in the source, the generated files are properly formatted with zero leading spaces.
 
-**✅ Use blank lines for readability (they're automatically stripped):**
+**Use blank lines for readability (they're automatically stripped):**
 ```avon
 @/config.json {{"
 
@@ -198,7 +186,7 @@ Output (blank lines removed, properly formatted):
 }
 ```
 
-**❌ Don't worry about indentation affecting output—it won't:**
+**Don't worry about indentation affecting output—it won't:**
 ```avon
 # This produces identical output to the examples above
 @/config.yml {"
@@ -209,7 +197,7 @@ Output (blank lines removed, properly formatted):
 
 The first line `server: localhost` (with 18 spaces) becomes the baseline, so 18 spaces are removed from every line, producing zero leading spaces in the output.
 
-**✅ Practical example showing baseline selection:**
+**Practical example showing baseline selection:**
 ```avon
 # 8-space indent in source, first line has 8 spaces = baseline
 @/file.txt {"
@@ -318,7 +306,7 @@ resource "aws_instance" "web" {
 
 ## Let Bindings
 
-### ✅ One Binding Per Line
+### One Binding Per Line
 
 **Preferred:**
 ```avon
@@ -333,7 +321,7 @@ url
 let port = 8080 in let host = "localhost" in let url = {"http://{host}:{port}"} in url
 ```
 
-### ✅ Cascading Lets for Readability
+### Cascading Lets for Readability
 
 Break complex logic into named steps:
 
@@ -355,7 +343,7 @@ map (\svc @/config-{svc}.yml {"service: {svc}"}) ["api", "web", "worker"]
 
 ## Function Definitions
 
-### ✅ Lambda Functions
+### Lambda Functions
 
 **Single Parameter:**
 ```avon
@@ -369,7 +357,7 @@ let make_url = \protocol \host \port {"{protocol}://{host}:{port}"} in
 make_url "https" "example.com" "443"
 ```
 
-### ✅ Default Parameters
+### Default Parameters
 
 Use `?` for parameters with defaults:
 
@@ -380,7 +368,7 @@ let greet = \name ? "Guest" @/greeting.txt {"
 greet "Alice"
 ```
 
-### ✅ Function Naming
+### Function Naming
 
 Use `snake_case` for function names:
 
@@ -394,13 +382,13 @@ let make_kubernetes_manifest = \service \env @/k8s/{env}/{service}.yaml {"
 
 ## Lists and Collections
 
-### ✅ Short Lists on One Line
+### Short Lists on One Line
 
 ```avon
 let colors = ["red", "green", "blue"] in
 ```
 
-### ✅ Long Lists on Multiple Lines
+### Long Lists on Multiple Lines
 
 ```avon
 let services = [
@@ -413,7 +401,7 @@ let services = [
 ] in
 ```
 
-### ✅ List Operations
+### List Operations
 
 ```avon
 let numbers = [1, 2, 3, 4, 5] in
@@ -526,4 +514,4 @@ Before committing your Avon code, verify:
 - **[TUTORIAL.md](./TUTORIAL.md)** — Learn Avon step-by-step
 - **[examples/](../examples/)** — 77 real-world examples
 
-Happy coding! 🚀
+Happy coding!

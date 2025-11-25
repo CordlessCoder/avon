@@ -1,8 +1,10 @@
-# Avon — Generate and Deploy Configs with Code
+# Avon — The Infrastructure Compiler
 
-**Avon** is a programming language AND deployment system for configuration files. Write one program, deploy hundreds of files.
+**Avon** isn't just another config language. It's a **compiler for your infrastructure**.
 
-**The language is only half the story—the `@` syntax deployment system is what makes Avon different.**
+Tired of managing 50 slightly different YAML files? Avon lets you write **one** program that generates and deploys them all. It combines a clean, functional programming language with a built-in deployment system.
+
+**Write code. Generate config. Go home early.**
 
 [![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](#license)
@@ -17,7 +19,7 @@ cargo build --release
 echo 'let name = "World" in @/hello.txt "Hello, {name}!"' > hello.av
 
 # 3. Deploy
-./target/release/avon hello.av --deploy --root ./output
+./target/release/avon deploy hello.av --root ./output
 
 # Result: ./output/hello.txt created with "Hello, World!"
 ```
@@ -28,8 +30,8 @@ echo 'let name = "World" in @/hello.txt "Hello, {name}!"' > hello.av
 
 Stop copy-pasting configs. Stop maintaining 50 nearly-identical YAML files. Stop forgetting to update that one config when you change a port.
 
-**Traditional approach:** Generate → Save → Copy → Repeat 100 times  
-**Avon:** Write once → `avon --deploy` → 100 files appear
+**Traditional approach:** Generate -> Save -> Copy -> Repeat 100 times  
+**Avon:** Write once -> `avon deploy` -> 100 files appear
 
 ## What Makes Avon Different
 
@@ -44,17 +46,17 @@ Stop copy-pasting configs. Stop maintaining 50 nearly-identical YAML files. Stop
 
 | Tool | Approach | Multi-file Deploy | Type Checking | Learning Curve |
 |------|----------|-------------------|---------------|----------------|
-| **Avon** | Language + Deploy | ✅ Built-in | ✅ Runtime checks | Low |
-| Jsonnet | Pure language | ❌ Manual | ⚠️ Limited | Medium |
-| Dhall | Typed language | ❌ Manual | ✅ Strong types | High |
-| CUE | Data validation | ⚠️ Via scripts | ✅ Constraints | Medium |
-| Jinja2 | Template only | ❌ Manual | ❌ None | Low |
+| **Avon** | Language + Deploy | Built-in | Runtime checks | Low |
+| Jsonnet | Pure language | Manual | Limited | Medium |
+| Dhall | Typed language | Manual | Strong types | High |
+| CUE | Data validation | Via scripts | Constraints | Medium |
+| Jinja2 | Template only | Manual | None | Low |
 
 **Avon's sweet spot:** Easier than Dhall, more powerful than Jinja2, deploys unlike Jsonnet.
 
 ## Real Example
 
-10 services × 3 environments = 30 Kubernetes manifests. **One Avon program:**
+10 services x 3 environments = 30 Kubernetes manifests. **One Avon program:**
 
 ```avon
 let services = ["auth", "api", "frontend", "worker", "cache"] in
@@ -79,13 +81,13 @@ let make_k8s = \svc \env @/k8s/{env}/{svc}-deployment.yaml {"
 flatmap (\env map (\svc make_k8s svc env) services) environments
 ```
 
-**Run:** `avon k8s.av --deploy --root ./manifests`  
+**Run:** `avon deploy k8s.av --root ./manifests`  
 **Result:** 15 files created instantly. Change one line, redeploy all.
 
 **The Workflow:**
 ```
-Write k8s.av → Test with `avon eval` → Deploy to staging → Deploy to prod
-     ↓              ↓                        ↓                    ↓
+Write k8s.av -> Test with `avon eval` -> Deploy to staging -> Deploy to prod
+     |              |                        |                    |
   1 file       Verify output          ./staging/k8s/*      ./prod/k8s/*
 ```
 
@@ -112,7 +114,7 @@ avon eval docker-configs.av  # See what will be generated
 
 **Deploy:**
 ```bash
-avon docker-configs.av --deploy --root ./generated
+avon deploy docker-configs.av --root ./generated
 ```
 
 **Result:** 3 files created in `./generated/`. Scale this to 100 services just as easily.
@@ -155,7 +157,7 @@ map (\svc
     server {{
       listen 80;
       server_name {name}.example.com;
-    }}
+      }}
   "}) services
 ```
 
@@ -165,7 +167,7 @@ map (\svc
 ```avon
 @/path/to/file.yml {"content goes here"}
 ```
-Files know where they belong. `avon --deploy` writes everything at once.
+Files know where they belong. `avon deploy` writes everything at once.
 
 **Dictionaries with Dot Notation** — First-class hash maps
 ```avon
@@ -194,59 +196,60 @@ math.double 21  # Returns 42
 
 **Any Text Format** — YAML, JSON, TOML, HCL, shell scripts, code, configs, docs
 
-Run `avon --doc` for complete function reference.
+Run `avon doc` for complete function reference.
 
 ## Commands
 
-**Evaluation (No Files Written):**
+**Core Commands:**
 ```bash
-# Evaluate and print result
+# Evaluate and print result (no files written)
 avon eval program.av
 
-# Evaluate code from command line
-avon --eval-input 'map (\x x * 2) [1, 2, 3]'
+# Deploy files to disk
+avon deploy program.av --root ./output
 
-# Evaluate from git
-avon --git-eval pyrotek45/avon/examples/test.av
+# Evaluate code directly
+avon run 'map (\x x * 2) [1, 2, 3]'
+
+# Fetch and run from git
+avon eval --git user/repo/program.av
+avon deploy --git user/repo/program.av --root ./output
 ```
 
-**Deployment:**
+**Deployment Options:**
 ```bash
-# Generate and deploy files
-avon program.av --deploy --root ./output
-
 # Overwrite existing files
-avon program.av --deploy --root ./output --force
+avon deploy program.av --force
 
-# Append to existing files instead of overwriting
-avon program.av --deploy --root ./output --append
+# Append to existing files
+avon deploy program.av --append
 
 # Only write if file doesn't exist
-avon program.av --deploy --root ./output --if-not-exists
+avon deploy program.av --if-not-exists
 
-# Deploy from git repository
-avon --git pyrotek45/avon/examples/site_generator.av --root ./site
+# Prepend directory to all paths
+avon deploy program.av --root ./dist
 ```
 
 **Pass Arguments to Functions:**
 ```bash
 # Named arguments (uses function parameter names)
-avon program.av --deploy -env prod -region us-east-1
+avon deploy program.av -env prod -region us-east-1
 
-# Positional arguments
-avon program.av --deploy staging
+# Positional arguments (passed to top-level function)
+avon deploy program.av staging
 ```
 
 **Debugging:**
 ```bash
 # Show lexer, parser, and evaluator debug output
-avon program.av --debug
+avon eval program.av --debug
 
 # Get all builtin function documentation
-avon --doc
+avon doc
 ```
 
-**Workflow:** Write → Test with `eval` → Deploy to test dir → Deploy to production
+**Workflow:** Write -> Test with `eval` -> Deploy to test dir -> Deploy to production
 
 ## Examples
 
@@ -293,28 +296,28 @@ math.double 21  # Use functions from imported dict
 "}
 ```
 
-See [TUTORIAL.md](./tutorial/TUTORIAL.md) for complete guide or run `avon --doc`.
+See [TUTORIAL.md](./tutorial/TUTORIAL.md) for complete guide or run `avon doc`.
 
 ## Documentation
 
 - **[Tutorial](./tutorial/TUTORIAL.md)** | **[Reference](./tutorial/FEATURES.md)** | **[Style Guide](./tutorial/STYLE_GUIDE.md)** | **[Debug](./tutorial/DEBUGGING_GUIDE.md)**
 - **92 working examples** in `./examples/`
-- **`avon --doc`** for built-in help
+- **`avon doc`** for built-in help
 
 ## Why Avon?
 
 **When to use Avon:**
-- ✅ Generating multiple config files (Docker, K8s, CI/CD, etc.)
-- ✅ Multi-environment deployments (dev/staging/prod)
-- ✅ Need type checking and validation in configs
-- ✅ Want one source of truth for infrastructure
-- ✅ Tired of copy-paste-modify workflows
+- Generating multiple config files (Docker, K8s, CI/CD, etc.)
+- Multi-environment deployments (dev/staging/prod)
+- Need type checking and validation in configs
+- Want one source of truth for infrastructure
+- Tired of copy-paste-modify workflows
 
 **When NOT to use Avon:**
-- ❌ Single static config file (just write YAML/JSON)
-- ❌ Need strong compile-time types (use Dhall)
-- ❌ Building web apps (use a web framework)
-- ❌ Complex data validation logic (use CUE)
+- Single static config file (just write YAML/JSON)
+- Need strong compile-time types (use Dhall)
+- Building web apps (use a web framework)
+- Complex data validation logic (use CUE)
 
 **Avon shines when you need to generate 10-1000 files from one program.**
 
@@ -327,23 +330,26 @@ See [TUTORIAL.md](./tutorial/TUTORIAL.md) for complete guide or run `avon --doc`
 
 ## Error Messages & Debugging
 
-Avon provides simple, direct error messages that show exactly what went wrong:
+Avon provides simple, direct error messages that show exactly what went wrong and where:
 
 ```bash
 # Type mismatch in operator
-$ avon test.av
-concat: type mismatch: expected string, found 8080, /api
+$ avon eval test.av
+concat: type mismatch: expected String, found Number on line 10
+10 |    concat "Port: " 8080
 
 # Type mismatch in function
-$ avon test_map.av
-map: add_one: +: expected String, found Number
+$ avon eval test_map.av
+map: add_one: +: expected String, found Number on line 5
+   5 |    x + " suffix"
 
 # Nested function error chain
-$ avon test_fold.av
-fold: x: +: expected Number, found String
+$ avon eval test_fold.av
+fold: x: +: expected Number, found String on line 15
+  15 |    acc + item
 ```
 
-Each error shows the function/operator name and the types involved. **Simple errors are better—they're easier to understand and act on.**
+Each error shows the function/operator name, the types involved, and the exact line number with source code context. **Actionable errors help you fix problems faster.**
 
 **Debugging Tools:**
 - `trace "label" value` — Print labeled values to stderr, returns value unchanged
@@ -360,7 +366,7 @@ See [tutorial/DEBUGGING_GUIDE.md](tutorial/DEBUGGING_GUIDE.md) for the complete 
 git clone https://github.com/pyrotek45/avon
 cd avon
 cargo build --release
-./target/release/avon --version
+./target/release/avon version
 ```
 
 ### Add to PATH (optional)
@@ -394,11 +400,11 @@ cargo build --release
 ./target/release/avon eval examples/docker_compose_gen.av
 
 # 3. Generate your first configs
-./target/release/avon examples/docker_compose_gen.av --deploy --root ./my-configs
+./target/release/avon deploy examples/docker_compose_gen.av --root ./my-configs
 ```
 
 **Stop maintaining 50 config files. Maintain 1 Avon program.**
 
 ---
 
-**Questions?** Check the [Tutorial](./tutorial/TUTORIAL.md) or run `avon --doc` for built-in help.
+**Questions?** Check the [Tutorial](./tutorial/TUTORIAL.md) or run `avon doc` for built-in help.

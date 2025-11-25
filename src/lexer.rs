@@ -2,7 +2,7 @@ use crate::common::{Chunk, EvalError, Token};
 use std::iter::Peekable;
 use std::str::Chars;
 
-pub fn identifier(next: char, stream: &mut Peekable<Chars<'_>>) -> Token {
+pub fn identifier(next: char, stream: &mut Peekable<Chars<'_>>, line: usize) -> Token {
     let mut ident = String::new();
     ident.push(next);
     loop {
@@ -15,15 +15,20 @@ pub fn identifier(next: char, stream: &mut Peekable<Chars<'_>>) -> Token {
         // Safe: we just peeked and confirmed there's a character
         ident.push(stream.next().expect("character exists after peek"));
     }
-    Token::Identifier(ident)
+    Token::Identifier(ident, line)
 }
 
-pub fn string(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
+pub fn string(stream: &mut Peekable<Chars<'_>>, line: &mut usize) -> Result<Token, EvalError> {
+    let start_line = *line;
     let mut string = String::new();
     loop {
         let next_opt = stream.next();
         match next_opt {
-            None => return Err(EvalError::new("unterminated string", None, None, 0)),
+            None => return Err(EvalError::new("unterminated string", None, None, start_line)),
+            Some('\n') => {
+                *line += 1;
+                string.push('\n');
+            }
             Some('\\') => {
                 // Handle escape sequences
                 match stream.next() {
@@ -33,6 +38,9 @@ pub fn string(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
                     Some('\\') => string.push('\\'),
                     Some('"') => string.push('"'),
                     Some(c) => {
+                        if c == '\n' {
+                            *line += 1;
+                        }
                         // Unknown escape, keep as-is
                         string.push('\\');
                         string.push(c);
@@ -42,7 +50,7 @@ pub fn string(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
                             "unterminated string (backslash at end)",
                             None,
                             None,
-                            0,
+                            start_line,
                         ))
                     }
                 }
@@ -51,10 +59,11 @@ pub fn string(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
             Some(next) => string.push(next),
         }
     }
-    Ok(Token::String(string))
+    Ok(Token::String(string, start_line))
 }
 
-pub fn chunk(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
+pub fn chunk(stream: &mut Peekable<Chars<'_>>, line: &mut usize) -> Result<Token, EvalError> {
+    let start_line = *line;
     let mut open_count = 1;
     while matches!(stream.peek(), Some('{')) {
         stream.next();
@@ -62,7 +71,10 @@ pub fn chunk(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
     }
 
     while matches!(stream.peek(), Some(c) if c.is_whitespace()) {
-        stream.next();
+        let c = stream.next().unwrap();
+        if c == '\n' {
+            *line += 1;
+        }
     }
 
     match stream.next() {
@@ -72,7 +84,7 @@ pub fn chunk(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
                 "expected '\"' after opening braces",
                 None,
                 None,
-                0,
+                start_line,
             ))
         }
     }
@@ -81,6 +93,10 @@ pub fn chunk(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
     let mut cur = String::new();
 
     while let Some(ch) = stream.next() {
+        if ch == '\n' {
+            *line += 1;
+        }
+
         if ch == '"' {
             // Check if this quote is followed by exactly open_count closing braces
             let mut matched_braces = 0;
@@ -98,7 +114,7 @@ pub fn chunk(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
                 if !cur.is_empty() {
                     chunks.push(Chunk::String(cur));
                 }
-                return Ok(Token::Template(chunks));
+                return Ok(Token::Template(chunks, start_line));
             } else {
                 // Not a closing sequence, treat as literal quote and put back the braces
                 cur.push('"');
@@ -128,6 +144,9 @@ pub fn chunk(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
                 loop {
                     match stream.next() {
                         Some(c2) => {
+                            if c2 == '\n' {
+                                *line += 1;
+                            }
                             if c2 == '}' {
                                 // Count closing braces to match interpolation terminator
                                 let mut got = 1;
@@ -155,7 +174,7 @@ pub fn chunk(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
                                 "unexpected EOF inside template interpolation",
                                 None,
                                 None,
-                                0,
+                                start_line,
                             ))
                         }
                     }
@@ -215,11 +234,12 @@ pub fn chunk(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
         "unexpected EOF inside template",
         None,
         None,
-        0,
+        start_line,
     ))
 }
 
-pub fn path(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
+pub fn path(stream: &mut Peekable<Chars<'_>>, line: &mut usize) -> Result<Token, EvalError> {
+    let start_line = *line;
     let mut cur = String::new();
     let mut chunks = Vec::<Chunk>::new();
 
@@ -230,14 +250,18 @@ pub fn path(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
                 if !cur.is_empty() {
                     chunks.push(Chunk::String(cur));
                 }
-                return Ok(Token::Path(chunks));
+                return Ok(Token::Path(chunks, start_line));
             }
             Some(c) => {
+                if c == '\n' {
+                    *line += 1;
+                }
+
                 if c.is_whitespace() {
                     if !cur.is_empty() {
                         chunks.push(Chunk::String(cur));
                     }
-                    return Ok(Token::Path(chunks));
+                    return Ok(Token::Path(chunks, start_line));
                 }
 
                 if c == '{' {
@@ -254,10 +278,13 @@ pub fn path(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
                                     "EOF in path interpolation",
                                     None,
                                     None,
-                                    0,
+                                    start_line,
                                 ))
                             }
                             Some(ch2) => {
+                                if ch2 == '\n' {
+                                    *line += 1;
+                                }
                                 if ch2 == '}' {
                                     break;
                                 } else {
@@ -277,7 +304,7 @@ pub fn path(stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
     }
 }
 
-pub fn number(next: char, stream: &mut Peekable<Chars<'_>>) -> Result<Token, EvalError> {
+pub fn number(next: char, stream: &mut Peekable<Chars<'_>>, line: usize) -> Result<Token, EvalError> {
     let mut number = String::new();
     number.push(next);
     loop {
@@ -293,7 +320,7 @@ pub fn number(next: char, stream: &mut Peekable<Chars<'_>>) -> Result<Token, Eva
 
     let Some(peek) = stream.peek() else {
         let number: i64 = number.parse().unwrap_or_default();
-        return Ok(Token::Int(number));
+        return Ok(Token::Int(number, line));
     };
 
     if peek == &'.' {
@@ -310,27 +337,38 @@ pub fn number(next: char, stream: &mut Peekable<Chars<'_>>) -> Result<Token, Eva
             number.push(stream.next().expect("character exists after peek"));
         }
         let number: f64 = number.parse().unwrap_or_default();
-        return Ok(Token::Float(number));
+        return Ok(Token::Float(number, line));
     }
 
     let number: i64 = number.parse().unwrap_or_default();
-    Ok(Token::Int(number))
+    Ok(Token::Int(number, line))
 }
 
 #[allow(dead_code, unreachable_code, unused_mut)]
 pub fn tokenize(input: String) -> Result<Vec<Token>, EvalError> {
     let mut output = vec![];
     let mut stream = input.chars().peekable();
+    let mut line = 1;
+
     loop {
         let Some(next) = stream.next() else {
             break;
         };
 
+        if next == '\n' {
+            line += 1;
+            continue;
+        }
+
+        if next.is_whitespace() {
+            continue;
+        }
+
         macro_rules! checkfor {
             ($e:expr,$t:ident) => {
                 if let Some($e) = stream.peek() {
                     stream.next();
-                    output.push(Token::$t);
+                    output.push(Token::$t(line));
                     continue;
                 }
             };
@@ -338,15 +376,15 @@ pub fn tokenize(input: String) -> Result<Vec<Token>, EvalError> {
 
         match next {
             'A'..='Z' | 'a'..='z' | '_' => {
-                let ident = identifier(next, &mut stream);
+                let ident = identifier(next, &mut stream, line);
                 output.push(ident);
             }
             '0'..='9' => {
-                let number = number(next, &mut stream)?;
+                let number = number(next, &mut stream, line)?;
                 output.push(number);
             }
             '\"' => {
-                let string = string(&mut stream)?;
+                let string = string(&mut stream, &mut line)?;
                 output.push(string);
             }
             '{' => {
@@ -405,34 +443,35 @@ pub fn tokenize(input: String) -> Result<Vec<Token>, EvalError> {
 
                 if is_dict {
                     // Parse as dict - just output a single LBrace
-                    output.push(Token::LBrace);
+                    output.push(Token::LBrace(line));
                 } else {
                     // Parse as template - chunk() will handle all the brace counting
-                    let chunk = chunk(&mut stream)?;
+                    let chunk = chunk(&mut stream, &mut line)?;
                     output.push(chunk);
                 }
             }
-            '[' => output.push(Token::LBracket),
-            ']' => output.push(Token::RBracket),
-            '}' => output.push(Token::RBrace),
-            ',' => output.push(Token::Comma),
-            ':' => output.push(Token::Colon),
+            '[' => output.push(Token::LBracket(line)),
+            ']' => output.push(Token::RBracket(line)),
+            '}' => output.push(Token::RBrace(line)),
+            ',' => output.push(Token::Comma(line)),
+            ':' => output.push(Token::Colon(line)),
             '.' => {
                 checkfor!('.', DoubleDot);
-                output.push(Token::Dot)
+                output.push(Token::Dot(line))
             }
             '=' => {
                 checkfor!('=', DoubleEqual);
-                output.push(Token::Equal)
+                output.push(Token::Equal(line))
             }
             '@' => {
-                let chunk = path(&mut stream)?;
+                let chunk = path(&mut stream, &mut line)?;
                 output.push(chunk);
             }
             '#' => {
-                while let Some(&c) = stream.peek() {
-                    stream.next();
+                while let Some(&_c) = stream.peek() {
+                    let c = stream.next().unwrap();
                     if c == '\n' {
+                        line += 1;
                         break;
                     }
                 }
@@ -441,61 +480,61 @@ pub fn tokenize(input: String) -> Result<Vec<Token>, EvalError> {
             '!' => {
                 if let Some('=') = stream.peek() {
                     stream.next();
-                    output.push(Token::NotEqual);
+                    output.push(Token::NotEqual(line));
                     continue;
                 }
             }
             '>' => {
                 if let Some('=') = stream.peek() {
                     stream.next();
-                    output.push(Token::GreaterEqual);
+                    output.push(Token::GreaterEqual(line));
                     continue;
                 }
-                output.push(Token::Greater);
+                output.push(Token::Greater(line));
             }
             '<' => {
                 if let Some('=') = stream.peek() {
                     stream.next();
-                    output.push(Token::LessEqual);
+                    output.push(Token::LessEqual(line));
                     continue;
                 }
-                output.push(Token::Less);
+                output.push(Token::Less(line));
             }
-            '+' => output.push(Token::Add),
+            '+' => output.push(Token::Add(line)),
             // not sure what to do with single '&' and '|', so only handle double versions
             '&' => {
                 if let Some('&') = stream.peek() {
                     stream.next();
-                    output.push(Token::And);
+                    output.push(Token::And(line));
                     } else {
                         // Single & is not supported - skip with warning
-                        eprintln!("Warning: single '&' is not a valid token");
+                        eprintln!("Warning: single '&' is not a valid token on line {}", line);
                 }
             }
             '|' => {
                 if let Some('|') = stream.peek() {
                     stream.next();
-                    output.push(Token::Or);
+                    output.push(Token::Or(line));
                     } else {
                         // Single | is not supported - skip with warning  
-                        eprintln!("Warning: single '|' is not a valid token");
+                        eprintln!("Warning: single '|' is not a valid token on line {}", line);
                 }
             }
             '-' => {
                 // Check for pipe operator ->
                 if let Some('>') = stream.peek() {
                     stream.next();
-                    output.push(Token::Pipe);
+                    output.push(Token::Pipe(line));
                     continue;
                 }
-                output.push(Token::Sub)
+                output.push(Token::Sub(line))
             }
-            '/' => output.push(Token::Div),
-            '*' => output.push(Token::Mul),
-            '(' => output.push(Token::LParen),
-            ')' => output.push(Token::RParen),
-            '\\' => output.push(Token::BackSlash),
-            '?' => output.push(Token::Question),
+            '/' => output.push(Token::Div(line)),
+            '*' => output.push(Token::Mul(line)),
+            '(' => output.push(Token::LParen(line)),
+            ')' => output.push(Token::RParen(line)),
+            '\\' => output.push(Token::BackSlash(line)),
+            '?' => output.push(Token::Question(line)),
             _ => {}
         }
     }
