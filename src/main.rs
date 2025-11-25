@@ -488,7 +488,7 @@ mod tests {
             other => panic!("expected list from json array, got {:?}", other),
         }
 
-        // json_parse object (now returns list of [key, value] pairs)
+        // json_parse object (now returns dict)
         let json_obj_path = dir.join("avon_test_json_obj.json");
         let mut jo = fs::File::create(&json_obj_path).expect("create json obj");
         write!(jo, "{}", r#"{"k": "v"}"#).expect("write json obj");
@@ -498,11 +498,10 @@ mod tests {
         let mut symbols = initial_builtins();
         let v = eval(ast.program, &mut symbols, &progo).expect("eval");
         match v {
-            Value::List(items) => {
-                // Should be list of pairs like [["k", "v"]]
-                assert_eq!(items.len(), 1);
+            Value::Dict(_) => {
+                // Should be a dict now
             }
-            other => panic!("expected list of pairs from json object, got {:?}", other),
+            other => panic!("expected dict from json object, got {:?}", other),
         }
 
         // import: create a small file that evaluates to a number
@@ -1566,7 +1565,7 @@ mod tests {
         write!(jf, r#"{{"name": "Alice", "age": 30}}"#).expect("write json");
         drop(jf);
 
-        // Test that JSON objects are parsed as list of pairs and can be queried with get
+        // Test that JSON objects are parsed as dicts and can be queried with get or dot notation
         let prog = format!("let data = json_parse \"{}\" in get data \"name\"", json_path.to_string_lossy());
         let tokens = tokenize(prog.clone()).expect("tokenize");
         let ast = parse(tokens);
@@ -1574,8 +1573,8 @@ mod tests {
         let v = eval(ast.program, &mut symbols, &prog).expect("eval");
         assert_eq!(v.to_string(&prog), "Alice");
 
-        // Test that keys can be extracted
-        let prog2 = format!("let data = json_parse \"{}\" in keys data", json_path.to_string_lossy());
+        // Test that keys can be extracted from dict
+        let prog2 = format!("let data = json_parse \"{}\" in dict_keys data", json_path.to_string_lossy());
         let tokens2 = tokenize(prog2.clone()).expect("tokenize");
         let ast2 = parse(tokens2);
         let mut symbols2 = initial_builtins();
@@ -2448,7 +2447,7 @@ mod tests {
         let dir = std::env::temp_dir();
         let module_path = dir.join("test_module.av");
         let mut f = fs::File::create(&module_path).expect("create temp file");
-        write!(f, "let double = \\x x * 2 in dict [[\"double\", double]]").expect("write");
+        write!(f, "let double = \\x x * 2 in {{double: double}}").expect("write");
 
         let prog = format!("let m = import \"{}\" in typeof m", module_path.to_string_lossy());
         let tokens = tokenize(prog.clone()).expect("tokenize");
@@ -2484,7 +2483,7 @@ mod tests {
         let dir = std::env::temp_dir();
         let module_path = dir.join("test_math_module.av");
         let mut f = fs::File::create(&module_path).expect("create temp file");
-        write!(f, "let double = \\x x * 2 in let triple = \\x x * 3 in dict [[\"double\", double], [\"triple\", triple]]").expect("write");
+        write!(f, "let double = \\x x * 2 in let triple = \\x x * 3 in {{double: double, triple: triple}}").expect("write");
 
         let prog = format!("let math = import \"{}\" in math.double 5", module_path.to_string_lossy());
         let tokens = tokenize(prog.clone()).expect("tokenize");
@@ -2502,7 +2501,7 @@ mod tests {
         let dir = std::env::temp_dir();
         let module_path = dir.join("test_multi_module.av");
         let mut f = fs::File::create(&module_path).expect("create temp file");
-        write!(f, "let add = \\x \\y x + y in let sub = \\x \\y x - y in dict [[\"add\", add], [\"sub\", sub]]").expect("write");
+        write!(f, "let add = \\x \\y x + y in let sub = \\x \\y x - y in {{add: add, sub: sub}}").expect("write");
 
         let prog = format!(
             "let m = import \"{}\" in let a = m.add 10 5 in let b = m.sub 10 5 in concat (concat (typeof a) \",\") (typeof b)",
@@ -2525,10 +2524,10 @@ mod tests {
         let module2_path = dir.join("test_ns2.av");
         
         let mut f1 = fs::File::create(&module1_path).expect("create temp file 1");
-        write!(f1, "let func = \\x x * 2 in dict [[\"func\", func]]").expect("write");
+        write!(f1, "let func = \\x x * 2 in {{func: func}}").expect("write");
         
         let mut f2 = fs::File::create(&module2_path).expect("create temp file 2");
-        write!(f2, "let func = \\x x * 3 in dict [[\"func\", func]]").expect("write");
+        write!(f2, "let func = \\x x * 3 in {{func: func}}").expect("write");
 
         let prog = format!(
             "let m1 = import \"{}\" in let m2 = import \"{}\" in let r1 = m1.func 5 in let r2 = m2.func 5 in r1 + r2",
@@ -2548,8 +2547,8 @@ mod tests {
 
     #[test]
     fn test_is_dict_predicate() {
-        // Test is_dict predicate works correctly
-        let prog = "is_dict (dict [[\"key\", \"value\"]])".to_string();
+        // Test is_dict predicate works correctly with new dict syntax
+        let prog = "let d = {key: \"value\"} in is_dict d".to_string();
         let tokens = tokenize(prog.clone()).expect("tokenize");
         let ast = parse(tokens);
         let mut symbols = initial_builtins();
@@ -2585,8 +2584,8 @@ mod tests {
 
     #[test]
     fn test_dict_creation_and_access() {
-        // Test creating a dict and accessing members
-        let prog = "let d = dict [[\"name\", \"Alice\"], [\"age\", 30]] in d.name".to_string();
+        // Test creating a dict and accessing members with new dict syntax
+        let prog = "let d = {name: \"Alice\", age: 30} in d.name".to_string();
         let tokens = tokenize(prog.clone()).expect("tokenize");
         let ast = parse(tokens);
         let mut symbols = initial_builtins();
@@ -2596,12 +2595,408 @@ mod tests {
 
     #[test]
     fn test_dict_with_functions() {
-        // Test dict containing functions
-        let prog = "let d = dict [[\"double\", \\x x * 2], [\"triple\", \\x x * 3]] in d.double 5".to_string();
+        // Test dict containing functions with new dict syntax
+        let prog = "let d = {double: \\x x * 2, triple: \\x x * 3} in d.double 5".to_string();
         let tokens = tokenize(prog.clone()).expect("tokenize");
         let ast = parse(tokens);
         let mut symbols = initial_builtins();
         let v = eval(ast.program, &mut symbols, &prog).expect("eval");
         assert_eq!(v.to_string(&prog), "10");
+    }
+
+    // ============================================================================
+    // NEW DICT SYNTAX TESTS ({key: value})
+    // ============================================================================
+
+    #[test]
+    fn test_dict_literal_syntax_basic() {
+        // Test basic dict literal syntax {key: value}
+        let prog = "let d = {x: 10, y: 20} in d.x".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "10");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_multiple_access() {
+        // Test accessing multiple keys in dict literal
+        let prog = "let d = {x: 10, y: 20} in let x = d.x in let y = d.y in [x, y]".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "[10, 20]");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_nested() {
+        // Test nested dict literals
+        let prog = "let d = {user: {name: \"Alice\", age: 30}} in d.user.name".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "Alice");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_with_strings() {
+        // Test dict with string values
+        let prog = "let d = {first: \"John\", last: \"Doe\"} in d.first + \" \" + d.last".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "John Doe");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_with_lists() {
+        // Test dict containing lists
+        let prog = "let d = {items: [1, 2, 3], count: 3} in d.count".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "3");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_with_functions() {
+        // Test dict containing functions
+        let prog = "let d = {double: \\x x * 2, triple: \\x x * 3} in d.double 5".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "10");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_dict_keys() {
+        // Test dict_keys on dict literal
+        let prog = "let d = {x: 10, y: 20} in dict_keys d".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        // dict_keys should return a list of keys (order may vary)
+        let result = v.to_string(&prog);
+        assert!(result.contains("x") && result.contains("y"));
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_dict_values() {
+        // Test dict_values on dict literal
+        let prog = "let d = {x: 10, y: 20} in dict_values d".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        // dict_values should return a list of values
+        let result = v.to_string(&prog);
+        assert!(result.contains("10") && result.contains("20"));
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_dict_size() {
+        // Test dict_size on dict literal
+        let prog = "let d = {x: 10, y: 20, z: 30} in dict_size d".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "3");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_dict_merge() {
+        // Test dict_merge with dict literals
+        let prog = "let d1 = {x: 10, y: 20} in let d2 = {z: 30} in let merged = dict_merge d1 d2 in dict_size merged".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "3");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_is_dict() {
+        // Test is_dict on dict literal
+        let prog = "let d = {x: 10} in is_dict d".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::Bool(true) => {},
+            other => panic!("Expected true, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_with_get() {
+        // Test using get function with dict literal
+        let prog = "let d = {x: 10, y: 20} in get d \"x\"".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "10");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_with_set() {
+        // Test using set function with dict literal
+        let prog = "let d = {x: 10, y: 20} in let d2 = set d \"x\" 100 in d2.x".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "100");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_with_keys() {
+        // Test keys function with dict literal
+        let prog = "let d = {a: 1, b: 2, c: 3} in keys d".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        let result = v.to_string(&prog);
+        assert!(result.contains("a") && result.contains("b") && result.contains("c"));
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_with_values() {
+        // Test dict_values function with dict literal
+        let prog = "let d = {x: 100, y: 200} in dict_values d".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        let result = v.to_string(&prog);
+        assert!(result.contains("100") && result.contains("200"));
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_json_parse_returns_dict() {
+        // Test that json_parse returns dict for objects
+        use std::io::Write;
+        let dir = std::env::temp_dir();
+        let json_path = dir.join("avon_test_dict_syntax_parse.json");
+        let mut jf = fs::File::create(&json_path).expect("create json");
+        write!(jf, r#"{{"x": 10, "y": 20}}"#).expect("write json");
+        drop(jf);
+
+        let prog = format!("let d = json_parse \"{}\" in is_dict d", json_path.to_string_lossy());
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::Bool(true) => {},
+            other => panic!("Expected json_parse to return dict, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_json_access() {
+        // Test accessing dict returned from json_parse
+        use std::io::Write;
+        let dir = std::env::temp_dir();
+        let json_path = dir.join("avon_test_dict_syntax_access.json");
+        let mut jf = fs::File::create(&json_path).expect("create json");
+        write!(jf, r#"{{"name": "Alice", "age": 30}}"#).expect("write json");
+        drop(jf);
+
+        let prog = format!("let d = json_parse \"{}\" in get d \"age\"", json_path.to_string_lossy());
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "30");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_with_has_key() {
+        // Test dict_has_key function with dict literal
+        let prog = "let d = {x: 10, y: 20} in dict_has_key d \"x\"".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        match v {
+            Value::Bool(true) => {},
+            other => panic!("Expected true, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_with_expressions() {
+        // Test dict values with complex expressions
+        let prog = "let d = {sum: 5 + 10, product: 3 * 4} in let s = d.sum in let p = d.product in [s, p]".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "[15, 12]");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_mixed_types() {
+        // Test dict with mixed value types
+        let prog = "let d = {num: 42, str: \"hello\", bool: true, list: [1, 2]} in let n = d.num in let s = d.str in let b = d.bool in [n, s, b]".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "[42, hello, true]");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_empty() {
+        // Test empty dict
+        let prog = "let d = {} in dict_size d".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "0");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_single_key() {
+        // Test dict with single key
+        let prog = "let d = {name: \"Alice\"} in dict_size d".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "1");
+    }
+
+    #[test]
+    fn test_dict_literal_syntax_dict_to_list() {
+        // Test dict_to_list with dict literal
+        let prog = "let d = {x: 10, y: 20} in let lst = dict_to_list d in length lst".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "2");
+    }
+
+    #[test]
+    fn test_dict_nested_three_levels() {
+        // Test three-level nested dict access with chained dot notation
+        let prog = "let d = {user: {profile: {name: \"Alice\"}}} in d.user.profile.name".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "Alice");
+    }
+
+    #[test]
+    fn test_dict_nested_four_levels() {
+        // Test four-level nested dict access
+        let prog = "let d = {a: {b: {c: {d: 42}}}} in d.a.b.c.d".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "42");
+    }
+
+    #[test]
+    fn test_dict_nested_five_levels() {
+        // Test five-level nested dict access
+        let prog = "let d = {level1: {level2: {level3: {level4: {level5: \"FOUND\"}}}}} in d.level1.level2.level3.level4.level5".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "FOUND");
+    }
+
+    #[test]
+    fn test_dict_nested_with_mixed_types() {
+        // Test nested dicts with mixed value types at different levels
+        let prog = "let d = {user: {name: \"Bob\", age: 25, settings: {theme: \"dark\", notifications: true}}} in let name = d.user.name in let theme = d.user.settings.theme in [name, theme]".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "[Bob, dark]");
+    }
+
+    #[test]
+    fn test_dict_nested_with_lists() {
+        // Test nested dicts containing lists
+        let prog = "let d = {org: {teams: {devs: [\"Alice\", \"Bob\", \"Charlie\"]}}} in d.org.teams.devs".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "[Alice, Bob, Charlie]");
+    }
+
+    #[test]
+    fn test_dict_nested_chained_operations() {
+        // Test chained dict access with operations
+        let prog = "let d = {data: {values: {x: 10, y: 20}}} in d.data.values.x + d.data.values.y".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "30");
+    }
+
+    #[test]
+    fn test_dict_nested_partial_chain_access() {
+        // Test accessing intermediate levels of nested dicts
+        let prog = "let d = {config: {db: {host: \"localhost\", port: 5432}}} in let db = d.config.db in [db.host, db.port]".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "[localhost, 5432]");
+    }
+
+    #[test]
+    fn test_dict_nested_with_functions() {
+        // Test nested dicts containing function values
+        let prog = "let d = {math: {ops: {add: \\x \\y x + y}}} in d.math.ops.add 5 3".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "8");
+    }
+
+    #[test]
+    fn test_dict_nested_empty_dicts() {
+        // Test nested dicts with empty intermediate dicts
+        let prog = "let d = {outer: {inner: {deep: {}}}} in dict_size d.outer.inner.deep".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "0");
+    }
+
+    #[test]
+    fn test_dict_nested_with_get_function() {
+        // Test using get function on nested dict access result
+        let prog = "let d = {api: {endpoints: {users: \"GET /users\", posts: \"GET /posts\"}}} in get d.api.endpoints \"users\"".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "GET /users");
     }
 }

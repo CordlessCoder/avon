@@ -281,48 +281,55 @@ When deployed, this writes the template content to the specified file.
 
 **Examples:** `examples/map_example.av`, `examples/filter_example.av`, `examples/fold_example.av`, `examples/map_filter_fold.av`
 
-### �️ Map/Dictionary Operations
+### Map/Dictionary Operations
 
-Avon provides map/dictionary functionality using lists of key-value pairs. JSON objects are automatically parsed into this format.
+Avon provides two dictionary representations:
+1. **Dict Type** (modern): `{key: value, ...}` - First-class hash map with dot notation
+2. **List of Pairs** (classic): `[["key", "value"], ...]` - For backward compatibility
 
 | Function | Arity | Purpose | Example |
 |----------|-------|---------|---------|
-| `get` | 2 | Get value by key | `get map "name"` → `"Alice"` or `None` |
-| `set` | 3 | Update or add key-value | `set map "age" "30"` → new map |
-| `keys` | 1 | Extract all keys | `keys map` → `["name", "age"]` |
-| `values` | 1 | Extract all values | `values map` → `["Alice", "30"]` |
-| `has_key` | 2 | Check if key exists | `has_key map "name"` → `true` |
+| `dict_keys` | 1 | Get all keys as list | `dict_keys {name: "Alice"}` → `["name"]` |
+| `dict_values` | 1 | Get all values as list | `dict_values {name: "Alice"}` → `["Alice"]` |
+| `dict_size` | 1 | Count key-value pairs | `dict_size {a: 1, b: 2}` → `2` |
+| `dict_to_list` | 1 | Convert dict to pairs | `dict_to_list {a: 1}` → `[["a", 1]]` |
+| `dict_merge` | 2 | Merge two dicts | `dict_merge d1 d2` → merged dict |
+| `get` | 2 | Get value by key (dict or pairs) | `get {name: "Alice"} "name"` → `"Alice"` |
+| `set` | 3 | Update or add key (dict or pairs) | `set {a: 1} "b" 2` → `{a: 1, b: 2}` |
+| `keys` | 1 | Extract keys (dict or pairs) | `keys {a: 1}` → `["a"]` |
+| `values` | 1 | Extract values (dict or pairs) | `values {a: 1}` → `[1]` |
+| `has_key` | 2 | Check if key exists (dict or pairs) | `has_key {a: 1} "a"` → `true` |
 
-**Map Representation:**  
-Maps are lists of `[key, value]` pairs: `[["name", "Alice"], ["age", "30"]]`
-
-**Examples:**
+**Modern Dict Syntax:**  
+Dictionaries use curly braces with colon notation:
 
 ```avon
-# Create a map manually
-let config = [["host", "localhost"], ["port", "8080"]] in
+# Create a dict
+let config = {host: "localhost", port: 8080, debug: true} in
 
-# Get a value
-let host = get config "host" in  # "localhost"
-let missing = get config "db" in  # None
+# Access with dot notation
+let host = config.host in          # "localhost"
+let port = config.port in          # 8080
 
-# Update or add values
-let updated = set config "port" "9000" in
-let with_db = set updated "db" "postgres" in
-
-# Query the map
-let all_keys = keys with_db in      # ["host", "port", "db"]
-let all_values = values with_db in  # ["localhost", "9000", "postgres"]
-has_key with_db "host"              # true
+# Query the dict
+let all_keys = dict_keys config in     # ["host", "port", "debug"]
+let all_values = dict_values config in # ["localhost", 8080, true]
+dict_size config                       # 3
 ```
 
 **JSON Integration:**  
-JSON objects are automatically parsed as maps:
+JSON objects are automatically parsed as dicts:
 
 ```avon
 # config.json: {"app": "myapp", "version": "1.0", "debug": true}
 let data = json_parse "config.json" in
-let app_name = get data "app" in         # "myapp"
+let app_name = data.app in         # "myapp" (dot notation)
+let version = get data "version" in # "1.0" (get function)
+dict_size data                     # 3
+```
+
+**Examples:** `examples/dict_operations.av`, `examples/json_map_demo.av`
+
 let all_keys = keys data in              # ["app", "version", "debug"]
 has_key data "version"                   # true
 ```
@@ -532,15 +539,15 @@ center "Title" 20                  # "       Title        "
 
 **Full Demo:** `examples/formatting_demo.av`
 
-### � Data & Utilities
+### 📊 Data & Utilities
 
 | Function | Arity | Purpose | Example |
 |----------|-------|---------|---------|
 | `import` | 1 | Load another `.av` file | `import "lib.av"` |
-| `json_parse` | 1 | Parse JSON (objects → maps, arrays → lists) | `json_parse "{\"x\": 1}"` → `[["x", 1]]` |
+| `json_parse` | 1 | Parse JSON (objects → dicts, arrays → lists) | `json_parse "{\"x\": 1}"` → `{x: 1}` |
 | `os` | 0 | Get operating system | `os` → `"linux"`, `"windows"`, `"macos"` |
 
-**Note:** `json_parse` converts JSON objects to list-of-pairs maps (e.g., `{"a": 1}` → `[["a", 1]]`), which work seamlessly with map operations like `get`, `keys`, `values`, etc.
+**Note:** `json_parse` converts JSON objects to Dict types (e.g., `{"a": 1}` → `{a: 1}`), which support dot notation access like `data.a` and functions like `dict_keys`, `dict_values`, etc.
 
 **Examples:** `examples/import_example.av`, `examples/json_map_demo.av`
 
@@ -597,6 +604,25 @@ Deploy the program, generate files in the specified directory.
 - `--append` — Append to existing files instead of overwriting
 - `--if-not-exists` — Only write file if it doesn't already exist
 - **Default**: Files are NOT overwritten; a clear warning is shown instead
+
+### Quick Eval from Command Line
+```bash
+avon --eval-input 'map (\x x * 2) [1, 2, 3]'
+avon --eval-input 'typeof 42'
+```
+
+Evaluate code directly without writing a file.
+
+### Debugging & Documentation
+```bash
+# Show debug output from lexer, parser, and evaluator
+avon program.av --debug
+
+# Show all builtin functions with types
+avon --doc
+```
+
+The `--debug` flag shows detailed tokenization, parsing, and evaluation steps, helpful for troubleshooting complex programs.
 
 ### Fetch from GitHub
 

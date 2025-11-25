@@ -1,12 +1,12 @@
 # Data Transformation Pipeline Using Dicts
 # Shows dict as structured data container with transformation functions
 
-# Sample data: list of user records as dicts
+# Sample data: list of user records as dicts using new {key:value} syntax
 let users = [
-  dict [["id", 1], ["name", "Alice"], ["age", 30], ["role", "admin"]],
-  dict [["id", 2], ["name", "Bob"], ["age", 25], ["role", "user"]],
-  dict [["id", 3], ["name", "Charlie"], ["age", 35], ["role", "user"]],
-  dict [["id", 4], ["name", "Diana"], ["age", 28], ["role", "moderator"]]
+  {id: 1, name: "Alice", age: 30, role: "admin"},
+  {id: 2, name: "Bob", age: 25, role: "user"},
+  {id: 3, name: "Charlie", age: 35, role: "user"},
+  {id: 4, name: "Diana", age: 28, role: "moderator"}
 ] in
 
 # Transform user by adding a new field
@@ -22,10 +22,7 @@ in
 
 # Extract specific fields to create a summary dict
 let to_summary = \user 
-  dict [
-    ["name", dict_get user "name"],
-    ["role", dict_get user "role"]
-  ]
+  {name: dict_get user "name", role: dict_get user "role"}
 in
 
 # Calculate average age from user list
@@ -45,14 +42,14 @@ let admin_summaries =
   map to_summary admins
 in
 
-# Build analytics dict
-let analytics = dict [
-  ["total_users", length users],
-  ["active_users", length active_users],
-  ["admin_count", length admin_summaries],
-  ["average_age", avg_age users],
-  ["roles", ["admin", "user", "moderator"]]
-] in
+# Build analytics dict using new syntax
+let analytics = {
+  total_users: length users,
+  active_users: length active_users,
+  admin_count: length admin_summaries,
+  average_age: avg_age users,
+  roles: ["admin", "user", "moderator"]
+} in
 
 # Generate report
 @report.txt {"

@@ -350,12 +350,73 @@ pub fn tokenize(input: String) -> Result<Vec<Token>, EvalError> {
                 output.push(string);
             }
             '{' => {
-                let chunk = chunk(&mut stream)?;
-                output.push(chunk);
+                // Need to distinguish between template and dict syntax
+                // Dict: {identifier:value, identifier:value, ...} or {}
+                // Template: {expr}" or {{expr}} etc - must have " after braces
+                
+                // Clone the stream to peek ahead without consuming
+                let mut temp_stream = stream.clone();
+                let mut is_dict = false;
+                
+                // Skip any additional opening braces (for templates like {{...}})
+                while let Some(&'{') = temp_stream.peek() {
+                    temp_stream.next();
+                }
+                
+                // Skip whitespace
+                while let Some(&c) = temp_stream.peek() {
+                    if c.is_whitespace() {
+                        temp_stream.next();
+                    } else {
+                        break;
+                    }
+                }
+                
+                // Check if next is closing brace (empty dict {})
+                if let Some(&'}') = temp_stream.peek() {
+                    is_dict = true;
+                } else if let Some(&c) = temp_stream.peek() {
+                    // Check if it's an identifier followed by colon (dict)
+                    if c.is_alphabetic() || c == '_' {
+                        // Skip the identifier
+                        while let Some(&ch) = temp_stream.peek() {
+                            if ch.is_alphanumeric() || ch == '_' {
+                                temp_stream.next();
+                            } else {
+                                break;
+                            }
+                        }
+                        
+                        // Skip whitespace after identifier
+                        while let Some(&ch) = temp_stream.peek() {
+                            if ch.is_whitespace() {
+                                temp_stream.next();
+                            } else {
+                                break;
+                            }
+                        }
+                        
+                        // Check if next is colon (dict syntax)
+                        if let Some(&':') = temp_stream.peek() {
+                            is_dict = true;
+                        }
+                    }
+                }
+                
+                if is_dict {
+                    // Parse as dict - just output a single LBrace
+                    output.push(Token::LBrace);
+                } else {
+                    // Parse as template - chunk() will handle all the brace counting
+                    let chunk = chunk(&mut stream)?;
+                    output.push(chunk);
+                }
             }
             '[' => output.push(Token::LBracket),
             ']' => output.push(Token::RBracket),
+            '}' => output.push(Token::RBrace),
             ',' => output.push(Token::Comma),
+            ':' => output.push(Token::Colon),
             '.' => {
                 checkfor!('.', DoubleDot);
                 output.push(Token::Dot)

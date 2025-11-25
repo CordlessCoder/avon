@@ -1,67 +1,50 @@
 # Dictionary-based Configuration System
 # Demonstrates using dicts for structured configuration
 
-# Define configuration for different environments
-let dev_config = dict [
-  ["host", "localhost"],
-  ["port", 8080],
-  ["debug", "true"],
-  ["log_level", "debug"],
-  ["workers", 1],
-  ["cache_enabled", "false"]
-] in
+# Define configuration for different environments using new {key:value} syntax
+let dev_config = {
+  host: "localhost",
+  port: 8080,
+  debug: true,
+  log_level: "debug",
+  workers: 1
+} in
 
-let prod_config = dict [
-  ["host", "0.0.0.0"],
-  ["port", 443],
-  ["debug", "false"],
-  ["log_level", "warn"],
-  ["workers", 8],
-  ["cache_enabled", "true"]
-] in
+let prod_config = {
+  host: "0.0.0.0",
+  port: 443,
+  debug: false,
+  log_level: "warn",
+  workers: 8
+} in
 
-# Database configurations
-let db_common = dict [
-  ["driver", "postgres"],
-  ["pool_size", 10],
-  ["timeout", 30]
-] in
+# Generate configuration report template
+@config_report.txt {"
+Dictionary-based Configuration System
+======================================
 
-let db_dev = dict_merge db_common (dict [
-  ["host", "localhost"],
-  ["database", "myapp_dev"]
-]) in
+DEVELOPMENT CONFIGURATION:
+  Host: {dev_config.host}
+  Port: {dev_config.port}
+  Workers: {dev_config.workers}
+  Log Level: {dev_config.log_level}
+  Debug Mode: {dev_config.debug}
 
-let db_prod = dict_merge db_common (dict [
-  ["host", "db.production.com"],
-  ["database", "myapp_prod"]
-]) in
+PRODUCTION CONFIGURATION:
+  Host: {prod_config.host}
+  Port: {prod_config.port}
+  Workers: {prod_config.workers}
+  Log Level: {prod_config.log_level}
+  Debug Mode: {prod_config.debug}
 
-# Function to generate config file from dict
-let make_config_file = \env \config @/config/{env}.yml {"
-  # Configuration for {env} environment
-  server:
-    host: {dict_get config "host"}
-    port: {dict_get config "port"}
-    debug: {dict_get config "debug"}
-    workers: {dict_get config "workers"}
-  
-  logging:
-    level: {dict_get config "log_level"}
-  
-  cache:
-    enabled: {dict_get config "cache_enabled"}
-"} in
+CONFIGURATION STATISTICS:
+  Dev Dict Size: {dict_size dev_config}
+  Prod Dict Size: {dict_size prod_config}
+  Dev Keys: {format_json (dict_keys dev_config)}
+  Prod Keys: {format_json (dict_keys prod_config)}
 
-# Generate configs for multiple environments
-let env_configs = dict [
-  ["dev", dev_config],
-  ["prod", prod_config]
-] in
-
-# Map over dict keys to generate files
-let env_list = dict_keys env_configs in
-map (\env 
-  let config = dict_get env_configs env in
-  make_config_file env config
-) env_list
+CONFIGURATION COMPARISON:
+  Same host: {dev_config.host == prod_config.host}
+  Dev workers < Prod workers: {dev_config.workers < prod_config.workers}
+  Total config entries: {(dict_size dev_config) + (dict_size prod_config)}
+"}

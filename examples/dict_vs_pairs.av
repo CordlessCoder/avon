@@ -8,8 +8,8 @@ let pairs = [
   ["city", "San Francisco"]
 ] in
 
-# 2. Dict - A first-class hash map type created from pairs
-let person = dict pairs in
+# 2. Dict - A first-class hash map type created with the new {key:value} syntax
+let person = {name: "Alice", age: 30, city: "San Francisco"} in
 
 # Key Differences:
 

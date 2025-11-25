@@ -1,0 +1,17 @@
+# Example: Nested Dictionary Access
+# Demonstrates accessing values in nested dictionaries using chained dot notation
+
+# Simple two-level nested structure
+let user = {
+  name: "Alice",
+  profile: {
+    age: 30,
+    email: "alice@example.com"
+  }
+} in
+
+# Access nested values
+let name = user.name in
+let age = user.profile.age in
+
+["User:", name, "Age:", age]

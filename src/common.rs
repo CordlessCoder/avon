@@ -32,7 +32,10 @@ pub enum Token {
     RParen,
     LBracket,
     RBracket,
+    LBrace,
+    RBrace,
     Comma,
+    Colon,
     Question,
     At,
     BackSlash,
@@ -138,6 +141,7 @@ pub enum Expr {
         template: Vec<Chunk>,
     },
     List(Vec<Expr>),
+    Dict(Vec<(String, Expr)>),
     Builtin(String, Vec<String>),
     If {
         cond: Box<Expr>,

@@ -293,11 +293,7 @@ pub fn initial_builtins() -> HashMap<String, Value> {
         Value::Builtin("md_list".to_string(), Vec::new()),
     );
 
-    // Data structures
-    m.insert(
-        "dict".to_string(),
-        Value::Builtin("dict".to_string(), Vec::new()),
-    );
+    // Data structures (dict is now literal syntax {key: value})
     // Dict operations
     m.insert(
         "dict_get".to_string(),
@@ -452,8 +448,15 @@ impl Value {
             Value::Function { .. } => "<function>".to_string(),
             Value::Builtin(name, _collected) => format!("<builtin:{}>", name),
             Value::Dict(map) => {
-                let keys: Vec<String> = map.keys().cloned().collect();
-                format!("{{dict: [{}]}}", keys.join(", "))
+                let mut entries: Vec<String> = Vec::new();
+                for (k, v) in map.iter() {
+                    let val_str = match v {
+                        Value::String(s) => format!("\"{}\"", s),
+                        _ => v.to_string(source),
+                    };
+                    entries.push(format!("{}: {}", k, val_str));
+                }
+                format!("{{{}}}", entries.join(", "))
             }
         }
     }
@@ -930,6 +933,15 @@ pub fn eval(
             }
             Ok(Value::List(evaluated))
         }
+        Expr::Dict(pairs) => {
+            // Parse dict literal: {key:value, key:value, ...}
+            let mut map = HashMap::new();
+            for (key, value_expr) in pairs {
+                let value = eval(value_expr, symbols, source)?;
+                map.insert(key.clone(), value);
+            }
+            Ok(Value::Dict(map))
+        }
         Expr::Member { object, field } => {
             let obj_val = eval(*object, symbols, source)?;
             match obj_val {
@@ -1014,7 +1026,6 @@ pub fn apply_function(func: &Value, arg: Value, source: &str) -> Result<Value, E
                 "md_link" => 2,
                 "md_code" => 1,
                 "md_list" => 1,
-                "dict" => 1,
                 "dict_get" => 2,
                 "dict_set" => 3,
                 "dict_has_key" => 2,
@@ -1420,14 +1431,12 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
                             Value::List(a.iter().map(|it| conv(it)).collect())
                         }
                         serde_json::Value::Object(o) => {
-                            // Convert JSON object to list of [key, value] pairs
-                            let pairs: Vec<Value> = o.iter()
-                                .map(|(k, v)| Value::List(vec![
-                                    Value::String(k.clone()),
-                                    conv(v)
-                                ]))
-                                .collect();
-                            Value::List(pairs)
+                            // Convert JSON object to Dict (hash map)
+                            let mut map = HashMap::new();
+                            for (k, v) in o.iter() {
+                                map.insert(k.clone(), conv(v));
+                            }
+                            Value::Dict(map)
                         }
                     }
                 }
@@ -2204,49 +2213,6 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
                 ))
             }
         }
-        "dict" => {
-            // dict :: [[String, a]] -> Dict
-            // Converts a list of [key, value] pairs to a dictionary
-            // Usage: dict [["name", "alice"], ["age", 30]]
-            let list = &args[0];
-            if let Value::List(pairs) = list {
-                let mut map = HashMap::new();
-                for pair in pairs {
-                    if let Value::List(kv) = pair {
-                        if kv.len() != 2 {
-                            return Err(EvalError::new(
-                                format!("dict: each pair must have exactly 2 elements [key, value], got {}", kv.len()),
-                                Some("[key, value]".to_string()),
-                                Some(format!("list of length {}", kv.len())),
-                                find_line_for_symbol("dict", source),
-                            ));
-                        }
-                        if let Value::String(key) = &kv[0] {
-                            map.insert(key.clone(), kv[1].clone());
-                        } else {
-                            return Err(EvalError::type_mismatch(
-                                "string (for dict key)",
-                                kv[0].to_string(source),
-                                find_line_for_symbol("dict", source),
-                            ));
-                        }
-                    } else {
-                        return Err(EvalError::type_mismatch(
-                            "list of [key, value] pairs",
-                            pair.to_string(source),
-                            find_line_for_symbol("dict", source),
-                        ));
-                    }
-                }
-                Ok(Value::Dict(map))
-            } else {
-                Err(EvalError::type_mismatch(
-                    "list of [key, value] pairs",
-                    list.to_string(source),
-                    find_line_for_symbol("dict", source),
-                ))
-            }
-        }
         "dict_get" => {
             let dict = &args[0];
             let key = &args[1];
@@ -2375,107 +2341,140 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str) -> Result<Value
             }
         }
         "get" => {
-            // get :: [[String, a]] -> String -> a | None
-            // Usage: get [["name", "alice"], ["age", "30"]] "name" => "alice"
+            // get :: (Dict|[[String, a]]) -> String -> a | None
+            // Works with both dicts and list of pairs
+            // Usage: get {name: "alice", age: 30} "name" => "alice"
+            //        get [["name", "alice"], ["age", "30"]] "name" => "alice"
             let map = &args[0];
             let key = &args[1];
-            if let (Value::List(pairs), Value::String(k)) = (map, key) {
-                for pair in pairs {
-                    if let Value::List(kv) = pair {
-                        if kv.len() >= 2 {
-                            if let Value::String(pair_key) = &kv[0] {
-                                if pair_key == k {
-                                    return Ok(kv[1].clone());
+            if let Value::String(k) = key {
+                match map {
+                    Value::Dict(dict) => {
+                        Ok(dict.get(k).cloned().unwrap_or(Value::None))
+                    }
+                    Value::List(pairs) => {
+                        for pair in pairs {
+                            if let Value::List(kv) = pair {
+                                if kv.len() >= 2 {
+                                    if let Value::String(pair_key) = &kv[0] {
+                                        if pair_key == k {
+                                            return Ok(kv[1].clone());
+                                        }
+                                    }
                                 }
                             }
                         }
+                        // Key not found - return None
+                        Ok(Value::None)
                     }
+                    _ => Err(EvalError::type_mismatch(
+                        "dict or list of pairs",
+                        map.to_string(source),
+                        find_line_for_symbol("", source),
+                    ))
                 }
-                // Key not found - return None
-                Ok(Value::None)
             } else {
                 Err(EvalError::type_mismatch(
-                    "list of pairs and string key",
-                    format!("{}, {}", map.to_string(source), key.to_string(source)),
+                    "string key",
+                    key.to_string(source),
                     find_line_for_symbol("", source),
                 ))
             }
         }
         "set" => {
-            // set :: [[String, a]] -> String -> a -> [[String, a]]
-            // Usage: set [["name", "alice"]] "age" "30" => [["name", "alice"], ["age", "30"]]
+            // set :: (Dict|[[String, a]]) -> String -> a -> (Dict|[[String, a]])
+            // Works with both dicts and list of pairs
+            // Usage: set {name: "alice"} "age" 30 => {name: "alice", age: 30}
+            //        set [["name", "alice"]] "age" 30 => [["name", "alice"], ["age", 30]]
             let map = &args[0];
             let key = &args[1];
             let value = &args[2];
-            if let (Value::List(pairs), Value::String(k)) = (map, key) {
-                let mut new_pairs = Vec::new();
-                let mut found = false;
-                
-                // Update existing key or keep pairs
-                for pair in pairs {
-                    if let Value::List(kv) = pair {
-                        if kv.len() >= 2 {
-                            if let Value::String(pair_key) = &kv[0] {
-                                if pair_key == k {
-                                    // Replace the value for this key
-                                    new_pairs.push(Value::List(vec![
-                                        Value::String(k.clone()),
-                                        value.clone(),
-                                    ]));
-                                    found = true;
+            if let Value::String(k) = key {
+                match map {
+                    Value::Dict(dict) => {
+                        let mut new_dict = dict.clone();
+                        new_dict.insert(k.clone(), value.clone());
+                        Ok(Value::Dict(new_dict))
+                    }
+                    Value::List(pairs) => {
+                        let mut new_pairs = Vec::new();
+                        let mut found = false;
+                        
+                        // Update existing key or keep pairs
+                        for pair in pairs {
+                            if let Value::List(kv) = pair {
+                                if kv.len() >= 2 {
+                                    if let Value::String(pair_key) = &kv[0] {
+                                        if pair_key == k {
+                                            // Replace the value for this key
+                                            new_pairs.push(Value::List(vec![
+                                                Value::String(k.clone()),
+                                                value.clone(),
+                                            ]));
+                                            found = true;
+                                        } else {
+                                            // Keep unchanged
+                                            new_pairs.push(pair.clone());
+                                        }
+                                    } else {
+                                        new_pairs.push(pair.clone());
+                                    }
                                 } else {
-                                    // Keep unchanged
                                     new_pairs.push(pair.clone());
                                 }
                             } else {
                                 new_pairs.push(pair.clone());
                             }
-                        } else {
-                            new_pairs.push(pair.clone());
                         }
-                    } else {
-                        new_pairs.push(pair.clone());
+                        
+                        // If key wasn't found, add it
+                        if !found {
+                            new_pairs.push(Value::List(vec![
+                                Value::String(k.clone()),
+                                value.clone(),
+                            ]));
+                        }
+                        
+                        Ok(Value::List(new_pairs))
                     }
+                    _ => Err(EvalError::type_mismatch(
+                        "dict or list of pairs",
+                        map.to_string(source),
+                        find_line_for_symbol("", source),
+                    ))
                 }
-                
-                // If key wasn't found, add it
-                if !found {
-                    new_pairs.push(Value::List(vec![
-                        Value::String(k.clone()),
-                        value.clone(),
-                    ]));
-                }
-                
-                Ok(Value::List(new_pairs))
             } else {
                 Err(EvalError::type_mismatch(
-                    "list of pairs, string key, and value",
-                    format!("{}, {}, {}", 
-                        map.to_string(source), 
-                        key.to_string(source),
-                        value.to_string(source)
-                    ),
+                    "string key",
+                    key.to_string(source),
                     find_line_for_symbol("", source),
                 ))
             }
         }
         "keys" => {
-            // keys :: [[String, a]] -> [String]
-            // Usage: keys [["name", "alice"], ["age", "30"]] => ["name", "age"]
+            // keys :: (Dict|[[String, a]]) -> [String]
+            // Works with both dicts and list of pairs
+            // Usage: keys {name: "alice", age: 30} => ["name", "age"]
+            //        keys [["name", "alice"], ["age", "30"]] => ["name", "age"]
             let map = &args[0];
-            if let Value::List(pairs) = map {
-                let mut keys = Vec::new();
-                for pair in pairs {
-                    if let Value::List(kv) = pair {
-                        if !kv.is_empty() {
-                            keys.push(kv[0].clone());
+            match map {
+                Value::Dict(dict) => {
+                    let keys: Vec<Value> = dict.keys().cloned().map(Value::String).collect();
+                    Ok(Value::List(keys))
+                }
+                Value::List(pairs) => {
+                    let mut keys = Vec::new();
+                    for pair in pairs {
+                        if let Value::List(kv) = pair {
+                            if !kv.is_empty() {
+                                keys.push(kv[0].clone());
+                            }
                         }
                     }
+                    Ok(Value::List(keys))
                 }
-                Ok(Value::List(keys))
-            } else {
-                Err(EvalError::type_mismatch(
-                    "list of pairs",
+                _ => Err(EvalError::type_mismatch(
+                    "dict or list of pairs",
                     map.to_string(source),
                     find_line_for_symbol("", source),
                 ))

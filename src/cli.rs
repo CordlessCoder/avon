@@ -49,14 +49,22 @@ fn print_builtin_docs() {
     // Map/Dictionary Operations
     println!("Map/Dictionary Operations:");
     println!("--------------------------");
-    println!("  get          :: [[String, a]] -> String -> a | None");
-    println!("  set          :: [[String, a]] -> String -> a -> [[String, a]]");
-    println!("  keys         :: [[String, a]] -> [String]");
-    println!("  values       :: [[String, a]] -> [a]");
-    println!("  has_key      :: [[String, a]] -> String -> Bool");
+    println!("  dict_keys    :: Dict -> [String]                 (get all keys)");
+    println!("  dict_values  :: Dict -> [a]                      (get all values)");
+    println!("  dict_size    :: Dict -> Int                      (count entries)");
+    println!("  dict_to_list :: Dict -> [[String, a]]            (convert to pairs)");
+    println!("  dict_merge   :: Dict -> Dict -> Dict             (merge two dicts)");
+    println!("  dict_get     :: Dict -> String -> a | None       (get value by key - deprecated, use dot notation)");
+    println!("  get          :: (Dict|Pairs) -> String -> a | None");
+    println!("  set          :: (Dict|Pairs) -> String -> a -> (Dict|Pairs)");
+    println!("  keys         :: (Dict|Pairs) -> [String]         (works with both dict and list pairs)");
+    println!("  values       :: (Dict|Pairs) -> [a]              (works with both dict and list pairs)");
+    println!("  has_key      :: (Dict|Pairs) -> String -> Bool");
     println!();
-    println!("  Note: Maps are represented as lists of [key, value] pairs.");
-    println!("        JSON objects are automatically parsed into this format.");
+    println!("  Modern syntax: let config = {{host: \"localhost\", port: 8080}} in");
+    println!("                 config.host  # Access with dot notation!");
+    println!("  Shorthand: dict_keys/values/size/to_list work with dicts");
+    println!("  Legacy: get/set/keys/values/has_key work with both dicts and [[k,v]] pairs");
     println!();
 
     // Type Conversion
@@ -124,7 +132,7 @@ fn print_builtin_docs() {
     // Data Utilities
     println!("Data Utilities:");
     println!("---------------");
-    println!("  json_parse   :: String -> a                       (JSON arrays → lists, objects → [[k,v]] maps)");
+    println!("  json_parse   :: String -> a                       (JSON arrays → lists, objects → dicts)");
     println!("  import       :: String|Path -> Value");
     println!();
 

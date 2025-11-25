@@ -6,11 +6,11 @@ let square = \x x * x in
 let add = \x \y x + y in
 let multiply = \x \y x * y in
 
-# Return a dict with all functions
-dict [
-  ["double", double],
-  ["triple", triple],
-  ["square", square],
-  ["add", add],
-  ["multiply", multiply]
-]
+# Return a dict with all functions using new dict syntax
+{
+  double: double,
+  triple: triple,
+  square: square,
+  add: add,
+  multiply: multiply
+}

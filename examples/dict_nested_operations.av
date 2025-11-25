@@ -1,0 +1,26 @@
+# Example: Nested Dictionary with Operations
+# Demonstrates performing operations on nested dictionary values
+
+let company = {
+  departments: {
+    engineering: {
+      budget: 500000,
+      headcount: 25
+    },
+    sales: {
+      budget: 300000,
+      headcount: 15
+    }
+  }
+} in
+
+# Access and combine nested values
+let eng_budget = company.departments.engineering.budget in
+let sales_budget = company.departments.sales.budget in
+let total_budget = eng_budget + sales_budget in
+
+let eng_headcount = company.departments.engineering.headcount in
+let sales_headcount = company.departments.sales.headcount in
+let total_headcount = eng_headcount + sales_headcount in
+
+["Total Budget:", total_budget, "Total Employees:", total_headcount]

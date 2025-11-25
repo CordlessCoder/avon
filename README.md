@@ -148,9 +148,9 @@ map (\repo @/.github/workflows/{repo}-ci.yml {"
 **From JSON data:**
 ```avon
 let data = json_parse "services.json" in
-let services = get data "services" in
+let services = data.services in
 map (\svc 
-  let name = get svc "name" in
+  let name = svc.name in
   @/nginx-{name}.conf {"
     server {{
       listen 80;
@@ -169,13 +169,13 @@ Files know where they belong. `avon --deploy` writes everything at once.
 
 **Dictionaries with Dot Notation** — First-class hash maps
 ```avon
-let config = dict [["host", "localhost"], ["port", 8080]] in
+let config = {host: "localhost", port: 8080} in
 config.host  # Access with dots!
 ```
 
 **Module System** — Import files, get their values, use dot notation
 ```avon
-# math.av exports: dict [["double", \x x * 2], ...]
+# math.av exports: {double: \x x * 2, triple: \x x * 3, ...}
 let math = import "math.av" in
 math.double 21  # Returns 42
 ```
@@ -205,28 +205,59 @@ Run `avon --doc` for complete function reference.
 
 ## Commands
 
+**Evaluation (No Files Written):**
 ```bash
-# Test (no files written)
+# Evaluate and print result
 avon eval program.av
 
-# Deploy files
+# Evaluate code from command line
+avon --eval-input 'map (\x x * 2) [1, 2, 3]'
+
+# Evaluate from git
+avon --git-eval pyrotek45/avon/examples/test.av
+```
+
+**Deployment:**
+```bash
+# Generate and deploy files
 avon program.av --deploy --root ./output
 
-# Pass variables
+# Overwrite existing files
+avon program.av --deploy --root ./output --force
+
+# Append to existing files instead of overwriting
+avon program.av --deploy --root ./output --append
+
+# Only write if file doesn't exist
+avon program.av --deploy --root ./output --if-not-exists
+
+# Deploy from git repository
+avon --git pyrotek45/avon/examples/site_generator.av --root ./site
+```
+
+**Pass Arguments to Functions:**
+```bash
+# Named arguments (uses function parameter names)
 avon program.av --deploy -env prod -region us-east-1
 
-# Overwrite existing
-avon program.av --deploy --force
+# Positional arguments
+avon program.av --deploy staging
+```
 
-# Quick eval from command line
-avon --eval-input 'map (\x x * 2) [1, 2, 3]'
+**Debugging:**
+```bash
+# Show lexer, parser, and evaluator debug output
+avon program.av --debug
+
+# Get all builtin function documentation
+avon --doc
 ```
 
 **Workflow:** Write → Test with `eval` → Deploy to test dir → Deploy to production
 
 ## Examples
 
-**77 working examples in `examples/` directory:**
+**92 working examples in `examples/` directory:**
 - Docker Compose, Kubernetes, Terraform, GitHub Actions
 - Nginx configs, environment files, CI/CD pipelines
 - Neovim/Emacs configs, static sites, markdown docs
@@ -244,10 +275,10 @@ let port = 8080 in
 let host = "localhost" in
 
 # Functions
-let make_url = \svc \p "http://{svc}:{p}" in
+let make_url = \svc \p {"http://{svc}:{p}"} in
 
 # Dictionaries (hash maps with dot notation)
-let config = dict [["host", host], ["port", port]] in
+let config = {host: host, port: port} in
 config.port  # Access with dots!
 
 # Lists and map
@@ -274,7 +305,7 @@ See [TUTORIAL.md](./tutorial/TUTORIAL.md) for complete guide or run `avon --doc`
 ## Documentation
 
 - **[Tutorial](./tutorial/TUTORIAL.md)** | **[Reference](./tutorial/FEATURES.md)** | **[Style Guide](./tutorial/STYLE_GUIDE.md)**
-- **77 working examples** in `./examples/`
+- **92 working examples** in `./examples/`
 - **`avon --doc`** for built-in help
 
 ## Why Avon?
@@ -296,7 +327,7 @@ See [TUTORIAL.md](./tutorial/TUTORIAL.md) for complete guide or run `avon --doc`
 
 ## Quality
 
-- **339+ tests passing** (109 unit + 230+ integration)
+- **500+ tests passing** (151 unit tests + 93 working examples + integration tests)
 - **Excellent error messages** with clickable locations
 - Type-safe, single binary, no dependencies
 - Production-ready error handling (no panics)

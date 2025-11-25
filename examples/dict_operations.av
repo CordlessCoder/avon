@@ -1,13 +1,13 @@
 # Dictionary Operations - Comprehensive Examples
 # Demonstrates all dict manipulation functions
 
-# Create a simple dictionary
-let person = dict [
-  ["name", "Alice"],
-  ["age", 30],
-  ["city", "San Francisco"],
-  ["role", "Engineer"]
-] in
+# Create a simple dictionary using the new {key:value} syntax
+let person = {
+  name: "Alice",
+  age: 30,
+  city: "San Francisco",
+  role: "Engineer"
+} in
 
 # Get all keys and values
 let all_keys = dict_keys person in
@@ -36,10 +36,10 @@ let size_before = dict_size person in
 let size_after = dict_size person_no_role in
 
 # Merge dictionaries
-let extra_info = dict [
-  ["department", "Engineering"],
-  ["level", "Senior"]
-] in
+let extra_info = {
+  department: "Engineering",
+  level: "Senior"
+} in
 let complete_person = dict_merge person extra_info in
 let total_keys = dict_size complete_person in
 

@@ -1,0 +1,25 @@
+# Example: Deep Nested Dictionary Access
+# Demonstrates accessing values deep in nested dictionaries
+
+# Five-level nested structure
+let api = {
+  servers: {
+    production: {
+      databases: {
+        primary: {
+          host: "db.example.com",
+          port: 5432,
+          name: "prod_db"
+        }
+      }
+    }
+  }
+} in
+
+# Access deeply nested values
+let host = api.servers.production.databases.primary.host in
+let port = api.servers.production.databases.primary.port in
+let db_name = api.servers.production.databases.primary.name in
+let port_str = to_string port in
+
+"Host: " + host + ", Port: " + port_str + ", Database: " + db_name

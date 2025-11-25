@@ -18,10 +18,10 @@ let surround = \s \left \right
 
 let quote = \s surround s "\"" "\"" in
 
-# Return functions as a dict
-dict [
-  ["uppercase_first", uppercase_first],
-  ["repeat_str", repeat_str],
-  ["surround", surround],
-  ["quote", quote]
-]
+# Return functions as a dict using new dict syntax
+{
+  uppercase_first: uppercase_first,
+  repeat_str: repeat_str,
+  surround: surround,
+  quote: quote
+}
