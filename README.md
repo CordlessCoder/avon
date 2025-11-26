@@ -1,10 +1,10 @@
-# Avon — The Infrastructure Compiler
+# Avon — Add Superpowers to Any File
 
-**Avon** isn't just another config language. It's a **compiler for your infrastructure**.
+**Avon** brings variables, functions, and utilities to **any text format**—from dotfiles to infrastructure configs.
 
-Tired of managing 50 slightly different YAML files? Avon lets you write **one** program that generates and deploys them all. It combines a clean, functional programming language with a built-in deployment system.
+Whether you're managing a single `.vimrc`, sharing dotfiles with friends, or generating hundreds of Kubernetes manifests, Avon is the workflow layer that makes any file more powerful, maintainable, and shareable. It's language agnostic, works with any text format, and brings the power of a functional language to your files.
 
-**Write code. Generate config. Go home early.**
+**From one dotfile to a thousand configs: variables, functions, and utilities for any file.**
 
 [![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](#license)
@@ -33,14 +33,24 @@ Stop copy-pasting configs. Stop maintaining 50 nearly-identical YAML files. Stop
 **Traditional approach:** Generate -> Save -> Copy -> Repeat 100 times  
 **Avon:** Write once -> `avon deploy` -> 100 files appear
 
+**But Avon isn't just for infrastructure teams.** Whether you're a developer managing dotfiles, a hobbyist sharing configs, or someone who wants to add variables and utilities to a single file—Avon brings the power of a functional language to any text format, making any file more generic, maintainable, and shareable.
+
 ## What Makes Avon Different
 
 **Two integrated systems:**
 
-1. **Functional Language** — Variables, functions, lists, conditionals, type checking
+1. **Functional Language** — Variables, functions, lists, conditionals, runtime type checking
 2. **Deployment System** — `@/path/to/file.yml {"content"}` syntax writes files directly
 
 **Result:** One command generates and deploys everything. No intermediate steps.
+
+**Language Agnostic:** Avon works with **any text format**—YAML, JSON, TOML, shell scripts, code, configs, documentation, or dotfiles. It brings variables, functions, and 80+ built-in utilities to any file, making even single files more powerful and maintainable.
+
+**Perfect for Everyone:**
+- **Developers:** Generate 10-1000 config files from one program
+- **Non-developers:** Easy way to download and deploy dotfiles, share configs, or manage personal settings
+- **Hobbyists:** Add superpowers to any file with variables, interpolation, and built-in functions
+- **Teams:** Share one template file in git, deploy customized variants via CLI arguments
 
 ### Avon vs Alternatives
 
@@ -54,7 +64,40 @@ Stop copy-pasting configs. Stop maintaining 50 nearly-identical YAML files. Stop
 
 **Avon's sweet spot:** Easier than Dhall, more powerful than Jinja2, deploys unlike Jsonnet.
 
-## Real Example
+## Perfect for Single Files Too
+
+Avon isn't just for generating hundreds of files. It's a powerful workflow layer that makes **any file** more maintainable, even if you're just managing one config.
+
+**Example: Dotfiles with Variables**
+```avon
+\username ? "developer" @/.vimrc {"
+  " Vim configuration for {username}
+  set number
+  set expandtab
+  set tabstop=4
+  colorscheme {if username == "developer" then "solarized" else "default"}
+"}
+```
+
+**Deploy:**
+```bash
+avon deploy vimrc.av --root ~ -username alice
+```
+
+**Share:** Keep one `.vimrc.av` in git. Each developer deploys their customized version. No more maintaining separate dotfiles for each machine.
+
+**Example: Long Config with Repetition**
+```avon
+let plugins = ["vim-fugitive", "vim-surround", "vim-commentary"] in
+@/.vimrc {"
+  " Plugin configuration
+  {plugins}
+"}
+```
+
+List interpolation automatically expands `{plugins}` into separate lines, eliminating copy-paste even in a single file.
+
+## Real Example: Multi-File Generation
 
 10 services x 3 environments = 30 Kubernetes manifests. **One Avon program:**
 
@@ -181,20 +224,29 @@ config.host  # Access with dots!
 # Instead of: length (filter (\x x > 2) [1, 2, 3, 4, 5])
 ```
 
-**Module System** — Import files, get their values, use dot notation
+**Simple & Modular** — Each file contains one expression, keeping Avon simple. The `import` function makes it modular: any file can return any Avon type (string, dict, function, FileTemplate, etc.), allowing files to be libraries, data sources, or generators.
 ```avon
-# math.av exports: {double: \x x * 2, triple: \x x * 3, ...}
+# math.av: {double: \x x * 2, triple: \x x * 3}
+# config.av: {host: "localhost", port: 8080}
+# deploy.av: @/config.yml {"content"}
+
 let math = import "math.av" in
+let config = import "config.av" in
 math.double 21  # Returns 42
+config.host     # Returns "localhost"
 ```
 
 **Functional Programming** — Variables, functions, map/filter/fold, conditionals
 
-**Type Safety** — `typeof`, `is_*`, `assert_*` functions catch errors early
+**Runtime Type Safety** — Avon doesn't deploy if there's a type error. No static types needed—if a type error occurs, deployment simply doesn't happen. This flexible approach brings type safety to any file without the complexity of compile-time type systems.
 
-**80+ Builtins** — String ops, list ops, formatting, JSON, file I/O, HTML/Markdown helpers
+**80+ Builtins** — String ops, list ops, formatting, JSON, file I/O, HTML/Markdown helpers. These utilities make any file more powerful, even if you're just managing a single config.
 
-**Any Text Format** — YAML, JSON, TOML, HCL, shell scripts, code, configs, docs
+**List Interpolation** — Perfect for long, repetitive files. Write one small program that generates extensive content using `map`, `filter`, and list interpolation features.
+
+**Any Text Format** — YAML, JSON, TOML, HCL, shell scripts, code, configs, docs, dotfiles. Language agnostic and format agnostic.
+
+**Debugging Tools** — `trace`, `debug`, `assert`, and `--debug` flag help you troubleshoot quickly, even for simple files.
 
 Run `avon doc` for complete function reference.
 
@@ -308,9 +360,10 @@ map (\s make_url s config.port) services
 let env = "prod" in
 if env == "prod" then "3 replicas" else "1 replica"
 
-# Module system - import returns the file's value
+# Module system - each file is one expression, import returns that value
 let math = import "math.av" in  # math.av returns a dict
 math.double 21  # Use functions from imported dict
+# Any file can return any type: dict, string, FileTemplate, etc.
 
 # Generate files with @ syntax
 @/config.yml {"
@@ -332,17 +385,21 @@ See [TUTORIAL.md](./tutorial/TUTORIAL.md) for complete guide or run `avon doc`.
 **When to use Avon:**
 - Generating multiple config files (Docker, K8s, CI/CD, etc.)
 - Multi-environment deployments (dev/staging/prod)
-- Need type checking and validation in configs
+- **Managing dotfiles** — Easy way to download and deploy configs to your system
+- **Sharing configs** — One file in git, many customized deployments
+- **Single files with variables** — Make any file more generic and maintainable
+- **Long, repetitive files** — Use list interpolation to eliminate copy-paste
+- Need runtime type checking and validation in configs
 - Want one source of truth for infrastructure
 - Tired of copy-paste-modify workflows
+- **Adding superpowers to any file** — Variables, functions, and utilities for any text format
 
 **When NOT to use Avon:**
-- Single static config file (just write YAML/JSON)
 - Need strong compile-time types (use Dhall)
 - Building web apps (use a web framework)
 - Complex data validation logic (use CUE)
 
-**Avon shines when you need to generate 10-1000 files from one program.**
+**Avon shines when you need to generate 10-1000 files from one program, but it's also a great workflow layer even for managing just a few files that need variables, utilities, or easy sharing.**
 
 ## Quality
 
@@ -377,8 +434,10 @@ Each error shows the function/operator name, the types involved, and the exact l
 **Debugging Tools:**
 - `trace "label" value` — Print labeled values to stderr, returns value unchanged
 - `debug value` — Pretty-print value structure to stderr, returns value unchanged
-- `assert_*` functions — Validate types early with `assert_string`, `assert_number`, etc.
+- `assert condition value` — Validate conditions early (e.g., `assert (is_string x) x`)
 - `--debug` flag — See lexer/parser/evaluator debug output
+
+These tools make debugging simple, whether you're working with complex infrastructure or a single config file. Avon's runtime type checking ensures reliability—if a type error occurs, deployment simply doesn't happen, protecting you from bad configurations.
 
 See [tutorial/DEBUGGING_GUIDE.md](tutorial/DEBUGGING_GUIDE.md) for the complete debugging guide.
 

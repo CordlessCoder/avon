@@ -4,6 +4,8 @@ Welcome to **Avon**. You're about to give your configuration workflow superpower
 
 Avon is designed for developers who are tired of copy-pasting. Whether you're building Kubernetes manifests, setting up CI/CD pipelines, or generating boilerplate code, Avon turns repetitive tasks into elegant, maintainable code.
 
+But Avon isn't just for complex infrastructure projects. It's a **powerful workflow layer** that makes any file more maintainable and shareable—even if you're just managing a single config or sharing dotfiles. Avon brings variables, functions, and 80+ built-in utilities to **any text format**, making it perfect for developers, non-developers, and hobbyists alike.
+
 **Pro tip:** Throughout this guide, look at the `examples/` directory for real-world use cases. Each example demonstrates practical Avon patterns you can adapt for your own projects.
 
 ---
@@ -94,9 +96,80 @@ This creates three files: `config-dev.yml`, `config-staging.yml`, and `config-pr
 
 **Key insight:** Return a list of file templates and Avon generates them all in one go!
 
+### Avon for Single Files and Dotfiles
+
+Avon isn't just for generating hundreds of files. It's a powerful workflow layer that makes **any file** more maintainable and shareable, even if you're just managing a single config.
+
+**Perfect for:**
+- **Dotfiles** — Easy way to download and deploy configs to your system
+- **Sharing configs** — One file in git, many customized deployments
+- **Single files with variables** — Make any file more generic and maintainable
+- **Long, repetitive files** — Use list interpolation to eliminate copy-paste
+- **Non-developers** — Simple way to manage and share personal configs
+
+**Example: Dotfile with Variables**
+```avon
+\username ? "developer" @/.vimrc {"
+  " Vim configuration for {username}
+  set number
+  set expandtab
+  set tabstop=4
+  colorscheme {if username == "developer" then "solarized" else "default"}
+"}
+```
+
+**Deploy:**
+```bash
+avon deploy vimrc.av --root ~ -username alice
+```
+
+**Share:** Keep one `.vimrc.av` in git. Each person deploys their customized version. No more maintaining separate dotfiles for each machine.
+
+**Example: Long Config with List Interpolation**
+```avon
+let plugins = ["vim-fugitive", "vim-surround", "vim-commentary", "vim-repeat"] in
+@/.vimrc {"
+  " Plugin configuration
+  {plugins}
+"}
+```
+
+When you interpolate a list in a template, each item appears on its own line. This eliminates copy-paste even in a single file.
+
+**Language Agnostic:** Avon works with **any text format**—YAML, JSON, shell scripts, code, configs, documentation, or dotfiles. It brings variables, functions, and 80+ built-in utilities to any file, making even single files more powerful.
+
+**Runtime Type Safety:** Avon doesn't deploy if there's a type error. No static types needed—if a type error occurs, deployment simply doesn't happen. This flexible approach brings type safety to any file without the complexity of compile-time type systems.
+
+**Built-in Utilities:** Avon comes with 80+ built-in functions for string operations, list operations, formatting, JSON manipulation, file I/O, and HTML/Markdown helpers. These utilities make any file more powerful, even if you're just managing a single config.
+
+**Debugging Tools:** Use `trace`, `debug`, `assert`, and the `--debug` flag to troubleshoot quickly, whether you're working with complex infrastructure or a simple config file.
+
 ---
 
 ## Core Concepts
+
+### Simple File Model
+
+**Each Avon file contains exactly one expression.** This keeps Avon simple and predictable. When you run an Avon file, it evaluates that single expression to a value.
+
+This simplicity enables powerful modularity: the `import` function allows any file to return any Avon type (a string, number, list, dict, function, FileTemplate, or any other value). Files can be libraries that export functions, data files that return dictionaries, or generators that return FileTemplates—all using the same simple model.
+
+**Example: Library file (`math.av`):**
+```avon
+{double: \x x * 2, triple: \x x * 3, square: \x x * x}
+```
+
+**Example: Data file (`config.av`):**
+```avon
+{host: "localhost", port: 8080, debug: true}
+```
+
+**Example: Generator file (`deploy.av`):**
+```avon
+@/config.yml {"host: localhost"}
+```
+
+All three are valid Avon files. The `import` function evaluates the file and returns whatever value it produces, making Avon naturally modular.
 
 ### The Avon Runtime Model
 
@@ -893,7 +966,9 @@ This generates `config-dev.yml` and `config-prod.yml`.
 
 ## Builtin Functions
 
-Avon comes with a toolkit of built-in functions for common tasks. All builtins are curried, so you can partially apply them.
+Avon comes with a toolkit of **80+ built-in functions** for common tasks. All builtins are curried, so you can partially apply them.
+
+These utilities make any file more powerful—whether you're generating hundreds of config files or just managing a single dotfile. You can leverage functions like `upper`, `lower`, `format_table`, `json_parse`, `html_escape`, and many more to add superpowers to any text format, even if it's just one file.
 
 ### String Operations
 
@@ -980,6 +1055,42 @@ Avon comes with a toolkit of built-in functions for common tasks. All builtins a
 | `import path` | Load and evaluate another `.av` file | `import "lib.av"` |
 | `json_parse json_str` | Parse JSON string | `json_parse "{\\"x\\": 1}"` |
 | `os` | Get OS string | `os` → `"linux"`, `"macos"`, `"windows"` |
+
+**The `import` Function and Modularity:**
+
+Avon's simplicity enables powerful modularity. Since each file contains exactly one expression, the `import` function evaluates that expression and returns whatever value it produces. This means **any file can return any Avon type**:
+
+- **Library files** return dictionaries of functions:
+  ```avon
+  # math.av
+  {double: \x x * 2, triple: \x x * 3, square: \x x * x}
+  ```
+  ```avon
+  # main.av
+  let math = import "math.av" in
+  math.double 21  # Returns 42
+  ```
+
+- **Data files** return dictionaries or lists:
+  ```avon
+  # config.av
+  {host: "localhost", port: 8080, debug: true}
+  ```
+  ```avon
+  # main.av
+  let config = import "config.av" in
+  config.host  # Returns "localhost"
+  ```
+
+- **Generator files** return FileTemplates or lists of FileTemplates:
+  ```avon
+  # deploy.av
+  @/config.yml {"host: localhost"}
+  ```
+
+- **Any other type** works too—strings, numbers, functions, etc.
+
+This simple model makes Avon naturally modular: organize code into reusable files, each returning the value that makes sense for its purpose.
 
 ### Example: String & List Combination
 
@@ -1128,9 +1239,32 @@ avon eval --git pyrotek45/avon/examples/string_functions.av
 
 ### Single File in Git, Many Deployments
 
-A powerful pattern with Avon is to keep **one template file in git** and let each environment or developer deploy customized configs via CLI arguments.
+A powerful pattern with Avon is to keep **one template file in git** and let each environment, developer, or user deploy customized configs via CLI arguments. This is especially useful for **dotfiles** and shared configurations.
 
-**Program (`deploy_config.av` in git):**
+**Example: Dotfile Template (`vimrc.av` in git):**
+```avon
+\username ? "developer" \theme ? "solarized" @/.vimrc {"
+  " Vim configuration for {username}
+  set number
+  set expandtab
+  set tabstop=4
+  colorscheme {theme}
+  
+  " User-specific settings
+  let mapleader = " "
+"}
+```
+
+**Usage:**
+```bash
+# Developer laptop
+avon deploy --git user/repo/vimrc.av --root ~ -username alice -theme solarized
+
+# Server
+avon deploy --git user/repo/vimrc.av --root ~ -username admin -theme default
+```
+
+**Example: App Config (`config.av` in git):**
 ```avon
 \env ? "dev" \user ? "developer" @/config-{env}.yml {"
     user: {user}
@@ -1141,21 +1275,44 @@ A powerful pattern with Avon is to keep **one template file in git** and let eac
 **Usage:**
 ```bash
 # Developer machine
-avon deploy --git user/repo/deploy_config.av --root ~/.config/myapp -env dev -user alice
+avon deploy --git user/repo/config.av --root ~/.config/myapp -env dev -user alice
 
 # Production server
-avon deploy --git user/repo/deploy_config.av --root /etc/myapp -env prod -user service
+avon deploy --git user/repo/config.av --root /etc/myapp -env prod -user service
 ```
 
-You keep a single, versioned Avon program as the source of truth, and use a combination of **default parameters** and **CLI arguments** to adapt it to each machine or environment.
+You keep a single, versioned Avon program as the source of truth, and use a combination of **default parameters** and **CLI arguments** to adapt it to each machine or environment. This makes sharing dotfiles and configs incredibly easy—just share one file in git, and everyone can deploy their customized version.
 
 ---
 
 ## Error handling and debugging
 
+### Runtime Type Safety
+
+Avon uses **runtime type checking** rather than static compile-time types. This flexible approach brings type safety to any file without the complexity of compile-time type systems.
+
+**Key behavior:** Avon **does not deploy** if there's a type error. If a type error occurs during evaluation, deployment simply doesn't happen. This protects you from bad or improperly typed configurations being written to disk.
+
 - Runtime errors produce `EvalError` with a clear message that names the failing function/operator and includes the source line number and context code to help you locate the issue.
 - Lexing / parsing errors also report line numbers and context to help you fix syntax issues quickly.
 - If deployment panics during file materialization, `avon` catches the panic and reports `Deployment panicked` rather than aborting your entire process. This protects you from half-written states. Use `--force` and test locally.
+
+### Debugging Tools
+
+Avon provides comprehensive debugging tools that work for both complex infrastructure projects and simple single-file configs:
+
+**`trace "label" value`** — Print labeled values to stderr while the program runs, returning the value unchanged so evaluation can continue. Perfect for inspecting intermediate values in your computation pipeline.
+
+**`debug value`** — Pretty-print the value structure to stderr, also returning the value unchanged. Useful for inspecting complex structures like lists, dicts, or nested data.
+
+**`assert condition value`** — Validate conditions early. For example:
+- `assert (is_string x) x` — Assert x is a string
+- `assert (x > 0) x` — Assert x is positive
+- `assert (length xs > 0) xs` — Assert list is not empty
+
+**`--debug` flag** — Use with `avon eval` to show detailed lexer, parser, and evaluator debug output. This provides deep insight into the execution process when you need to troubleshoot complex issues.
+
+These tools ensure that whether you're debugging a simple type mismatch in a single config file or inspecting complex list structures in a multi-file generator, you have the necessary feedback to streamline your workflow.
 
 ---
 
