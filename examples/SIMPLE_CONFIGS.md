@@ -45,7 +45,7 @@ This directory contains simple, beginner-friendly examples for generating common
 
 ## Customizing Examples
 
-All examples use `let` bindings for easy customization:
+All examples use top-level `let` bindings for easy customization. For most configs you will see something like:
 
 ```avon
 let user = "your_username" in
@@ -53,11 +53,12 @@ let theme = "your_theme" in
 let tab_width = "4" in
 ```
 
-Simply modify these values or pass them as command-line arguments:
+You can:
 
-```bash
-avon eval examples/vim_simple.av your_username
-```
+- **Edit the file directly**: change the default values in the `let` bindings and re-run the example.
+- **Make a copy**: copy an example to your own file (for example `my_vim_config.av`) and customize it there.
+
+Some advanced examples may also use Avon function parameters with default values (for example `\user ? "developer"`). In those cases you can either edit the default in the file or override it from the CLI; see the tutorial’s CLI section for details on passing arguments.
 
 ## Deploying Configs
 

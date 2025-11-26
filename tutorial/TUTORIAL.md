@@ -1126,6 +1126,29 @@ Fetch and evaluate a program from GitHub:
 avon eval --git pyrotek45/avon/examples/string_functions.av
 ```
 
+### Single File in Git, Many Deployments
+
+A powerful pattern with Avon is to keep **one template file in git** and let each environment or developer deploy customized configs via CLI arguments.
+
+**Program (`deploy_config.av` in git):**
+```avon
+\env ? "dev" \user ? "developer" @/config-{env}.yml {"
+    user: {user}
+    env: {env}
+"}
+```
+
+**Usage:**
+```bash
+# Developer machine
+avon deploy --git user/repo/deploy_config.av --root ~/.config/myapp -env dev -user alice
+
+# Production server
+avon deploy --git user/repo/deploy_config.av --root /etc/myapp -env prod -user service
+```
+
+You keep a single, versioned Avon program as the source of truth, and use a combination of **default parameters** and **CLI arguments** to adapt it to each machine or environment.
+
 ---
 
 ## Error handling and debugging

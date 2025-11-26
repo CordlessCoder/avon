@@ -211,10 +211,33 @@ avon deploy program.av --root ./output
 # Evaluate code directly
 avon run 'map (\x x * 2) [1, 2, 3]'
 
-# Fetch and run from git
+# Fetch and run from git (single template, many machines)
 avon eval --git user/repo/program.av
 avon deploy --git user/repo/program.av --root ./output
 ```
+
+### Single Template, Many Deployments
+
+One of Avon's core workflows is keeping **one Avon file in git** and letting each developer or environment deploy their own variant using CLI arguments.
+
+**Example (`configs.av` in git):**
+```avon
+\env ? "dev" \user ? "developer" @/config-{env}.yml {"
+    user: {user}
+    env: {env}
+"}
+```
+
+**Usage:**
+```bash
+# On a laptop
+avon deploy --git user/repo/configs.av --root ~/.config/myapp -env dev -user alice
+
+# On a server
+avon deploy --git user/repo/configs.av --root /etc/myapp -env prod -user service
+```
+
+Everyone shares the same source file in git, but customizes the deployed config via command-line arguments and default parameters.
 
 **Deployment Options:**
 ```bash

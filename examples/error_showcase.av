@@ -3,11 +3,11 @@
 
 # Uncomment lines below to see different error types:
 
-# 1. Type mismatch - number to string
-# assert_string 42
+# 1. Type mismatch - number to string (using general assert)
+# assert (is_string 42) 42
 
 # 2. Type mismatch - string to number  
-# assert_number "hello"
+# assert (is_number "hello") "hello"
 
 # 3. Unknown symbol with typo
 # lenght "test"
@@ -16,7 +16,7 @@
 # is_array [1, 2, 3]
 
 # 5. Int vs Float mismatch
-# assert_int 3.14
+# assert (is_int 3.14) 3.14
 
 # 6. Custom error with validation
 # let validate_port = \p

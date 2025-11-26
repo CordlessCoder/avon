@@ -1,23 +1,24 @@
 # JSON Parsing with Map Support
-# Demonstrates that JSON objects are parsed as list of [key, value] pairs
+# Demonstrates that JSON objects are parsed as Dicts (hash maps)
 
 let data = json_parse "examples/test_config.json" in
 
-# Access top-level keys
-let app_name = get data "name" in
-let version = get data "version" in
+# Access top-level keys using dot notation
+let app_name = data.name in
+let version = data.version in
+# Access using get function (also works on Dicts)
 let author = get data "author" in
 
 # Check what keys are available
 let available_keys = keys data in
 
 # Access nested object (config)
-let config = get data "config" in
-let port = get config "port" in
-let debug_flag = get config "debug" in
+let config = data.config in
+let port = config.port in
+let debug_flag = config.debug in
 
 # Access array
-let deps = get data "dependencies" in {"
+let deps = data.dependencies in {"
     JSON Parsing Demo
     =================
 

@@ -914,7 +914,7 @@ let env = "prod" in
 let names = ["Alice", "Bob", "Charlie"] in
 let formatted = map (\n upper n) names in
 let long_names = filter (\n (length n) > 3) formatted in
-{join long_names ", "}
+join long_names ", "
 ```
 
 ---
