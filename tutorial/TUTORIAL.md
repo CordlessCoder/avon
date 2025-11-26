@@ -1620,8 +1620,10 @@ let formatted = map (\item concat "service: " item) items in
 **`eval` - Evaluate and Print:**
 ```bash
 avon eval examples/map_example.av
+avon eval examples/greet.av -name Alice  # Can pass arguments!
 ```
 - Evaluates the Avon program
+- **Accepts arguments** - if the file evaluates to a function, you can pass arguments
 - Prints the result to stdout
 - **Does NOT write any files** - this is read-only
 - Use this to test your program before deploying
@@ -1630,8 +1632,10 @@ avon eval examples/map_example.av
 **`deploy` - Generate Files:**
 ```bash
 avon deploy examples/site_generator.av --root ./output --force
+avon deploy examples/greet.av -name Alice --root ./out --force  # Can pass arguments!
 ```
 - Evaluates the Avon program
+- **Accepts arguments** - if the file evaluates to a function, you can pass arguments
 - If the result is a FileTemplate or list of FileTemplates, writes them to disk
 - Requires `--root` to specify where files should be written (safety feature)
 - By default, skips existing files (use `--force` or `--backup` to overwrite)
@@ -1675,7 +1679,63 @@ avon --help
 
 ### Passing Arguments
 
-Avon allows you to pass values into your program from the command line. This is essential for reusing templates across different environments or configurations.
+Avon allows you to pass values into your program from the command line. This works with **both `eval` and `deploy` commands**. When your Avon file evaluates to a function, the CLI automatically applies the arguments you provide.
+
+#### How It Works
+
+**When a file evaluates to a function:**
+1. Avon evaluates the file's expression
+2. If the result is a function, Avon checks for arguments you provided
+3. Arguments are applied to the function (named arguments first, then positional)
+4. If the function still needs more arguments, default values are used (if available)
+5. The process continues until the function is fully applied or no more arguments are available
+6. The final result is then used:
+   - **With `eval`**: The result is printed
+   - **With `deploy`**: If the result is a FileTemplate or list of FileTemplates, files are written
+
+**Example: Simple function**
+```avon
+# math.av
+\x \y x + y
+```
+
+**Using `eval` with arguments:**
+```bash
+avon eval math.av 5 3
+# Output: 8
+
+avon eval math.av -x 5 -y 3
+# Output: 8
+```
+
+**Using `deploy` with arguments:**
+```bash
+# This won't work - the result is a number, not a FileTemplate
+avon deploy math.av 5 3
+# Error: Expected FileTemplate or list of FileTemplates
+```
+
+**Example: Function that returns a FileTemplate**
+```avon
+# greet.av
+\name @/greeting.txt {"
+    Hello, {name}!
+"}
+```
+
+**Using `eval` to preview:**
+```bash
+avon eval greet.av -name Alice
+# Output:
+# --- /greeting.txt ---
+# Hello, Alice
+```
+
+**Using `deploy` to write files:**
+```bash
+avon deploy greet.av -name Alice --root ./output --force
+# Creates: ./output/greeting.txt with "Hello, Alice"
+```
 
 #### 1. Named Arguments
 
@@ -1690,15 +1750,23 @@ If your main expression is a function with parameters, you can pass values using
 "}
 ```
 
-**Command:**
+**With `eval` (preview):**
 ```bash
-avon deploy greet.av -name "Alice" -role "Admin"
+avon eval greet.av -name "Alice" -role "Admin"
+# Shows what would be generated
+```
+
+**With `deploy` (write files):**
+```bash
+avon deploy greet.av -name "Alice" -role "Admin" --root ./out --force
+# Actually writes the file
 ```
 
 **How it works:**
-- The CLI looks for `-name` and passes "Alice" to the `name` parameter.
-- It looks for `-role` and passes "Admin" to the `role` parameter.
-- Arguments are type-checked at runtime (e.g. if your function uses the argument as a number, passing "hello" will cause an error).
+- The CLI looks for `-name` and passes "Alice" to the `name` parameter
+- It looks for `-role` and passes "Admin" to the `role` parameter
+- Arguments are received as **strings** (see "Argument Types" below)
+- Arguments are type-checked at runtime when used in your function
 
 #### 2. Positional Arguments
 
@@ -1707,14 +1775,39 @@ You can also pass arguments positionally, without the parameter names. This maps
 **Command:**
 ```bash
 # Maps "Alice" to name, "Admin" to role
-avon deploy greet.av "Alice" "Admin"
+avon eval greet.av "Alice" "Admin"
+avon deploy greet.av "Alice" "Admin" --root ./out --force
+```
+
+**How positional arguments work:**
+- Arguments are applied in the order they appear
+- Named arguments are applied first, then positional arguments fill remaining parameters
+- If you mix named and positional, named arguments take priority
+
+**Example:**
+```avon
+# config.av
+\env \port \debug @/config.yml {"
+    env: {env}
+    port: {port}
+    debug: {debug}
+"}
+```
+
+```bash
+# All positional
+avon eval config.av "prod" "8080" "true"
+
+# Mix named and positional (named takes priority)
+avon eval config.av -env dev "9090" "false"
+# env=dev (from named), port="9090" (positional), debug="false" (positional)
 ```
 
 **Recommendation:** Use named arguments for clarity, especially when you have multiple parameters or default values.
 
 #### 3. Default Values
 
-Parameters can have default values using the `?` syntax.
+Parameters can have default values using the `?` syntax. If an argument is not provided, the default is used.
 
 **Program (`config.av`):**
 ```avon
@@ -1724,28 +1817,175 @@ Parameters can have default values using the `?` syntax.
 "}
 ```
 
-**Usage:**
-- **Use defaults:** `avon deploy config.av` (env="dev", port=8080)
-- **Override some:** `avon deploy config.av -env prod` (env="prod", port=8080)
-- **Override all:** `avon deploy config.av -env prod -port 9090` (env="prod", port=9090)
+**Usage with `eval`:**
+```bash
+# Use defaults
+avon eval config.av
+# env="dev", port=8080
+
+# Override some
+avon eval config.av -env prod
+# env="prod", port=8080
+
+# Override all
+avon eval config.av -env prod -port 9090
+# env="prod", port=9090
+```
+
+**Usage with `deploy`:**
+```bash
+# Same syntax works for deploy
+avon deploy config.av --root ./out --force
+avon deploy config.av -env prod --root ./out --force
+avon deploy config.av -env prod -port 9090 --root ./out --force
+```
+
+**How defaults work:**
+- If a named argument is provided, it's used
+- If a positional argument is available, it's used
+- If neither is provided, the default value is used
+- If no default exists and no argument is provided, an error is shown
 
 #### 4. Mixing Named and Positional
 
 While possible, mixing named and positional arguments can be confusing. Avon prioritizes named arguments first, then fills remaining parameters with positional arguments in order.
 
-**Best Practice:** Stick to either all named or all positional arguments for a single command invocation.
-
-> **Note:** All command-line arguments passed to your Avon program are received as **strings**—even if you intend to use them as numbers or booleans, you must explicitly convert them inside your program (e.g., using `to_int`, `to_bool`, etc).
-
-For example, if you run:
-```bash
-avon deploy math.av -x 5 -y 40
-```
-Both `x` and `y` are provided as strings: `"5"` and `"40"`. You should convert them as needed:
+**Example:**
 ```avon
+# multi.av
+\a \b \c \d [a, b, c, d]
+```
+
+```bash
+# Mixing named and positional
+avon eval multi.av -a 1 -c 3 2 4
+# a=1 (named), b=2 (positional, first unused), c=3 (named), d=4 (positional, second unused)
+# Result: [1, 2, 3, 4]
+```
+
+**Best Practice:** Stick to either all named or all positional arguments for a single command invocation to avoid confusion.
+
+#### 5. Argument Types
+
+> **Important:** All command-line arguments passed to your Avon program are received as **strings**—even if you intend to use them as numbers or booleans, you must explicitly convert them inside your program.
+
+**Example:**
+```bash
+avon eval math.av -x 5 -y 40
+```
+
+Both `x` and `y` are provided as strings: `"5"` and `"40"`. You should convert them as needed:
+
+```avon
+# math.av
 \x \y to_int x + to_int y
 ```
-This ensures correct type handling and prevents subtle bugs when performing arithmetic or boolean logic.
+
+**Why?** This ensures correct type handling and prevents subtle bugs when performing arithmetic or boolean logic. The CLI doesn't know what types your function expects, so it passes everything as strings for maximum flexibility.
+
+**Type conversion examples:**
+```avon
+# Convert to number
+\port to_int port
+
+# Convert to boolean
+\debug to_bool debug
+
+# Convert to float
+\ratio to_float ratio
+```
+
+#### 6. Complete Examples
+
+**Example 1: Preview with `eval`, then deploy**
+```avon
+# app.av
+\name \env ? "dev" @/config-{env}.yml {"
+    app_name: {name}
+    environment: {env}
+"}
+```
+
+```bash
+# Step 1: Preview what will be generated
+avon eval app.av -name "myapp" -env prod
+# Output shows the FileTemplate that would be created
+
+# Step 2: Actually deploy it
+avon deploy app.av -name "myapp" -env prod --root ./configs --force
+```
+
+**Example 2: Function that needs multiple arguments**
+```avon
+# deploy.av
+\app \env \version @/deploy-{app}-{env}.yml {"
+    app: {app}
+    environment: {env}
+    version: {version}
+"}
+```
+
+```bash
+# All named arguments
+avon deploy deploy.av -app api -env prod -version 1.2.3 --root ./out --force
+
+# All positional
+avon deploy deploy.av api prod 1.2.3 --root ./out --force
+
+# Mix (not recommended but works)
+avon deploy deploy.av -app api prod 1.2.3 --root ./out --force
+```
+
+**Example 3: Function with defaults**
+```avon
+# service.av
+\name \replicas ? 3 \port ? 8080 @/service-{name}.yml {"
+    name: {name}
+    replicas: {replicas}
+    port: {port}
+"}
+```
+
+```bash
+# Use all defaults (but name is required)
+avon eval service.av -name webapp
+# replicas=3, port=8080
+
+# Override some
+avon eval service.av -name webapp -replicas 5
+# replicas=5, port=8080
+
+# Override all
+avon eval service.av -name webapp -replicas 5 -port 9090
+# replicas=5, port=9090
+```
+
+**Example 4: Non-function files**
+```avon
+# data.av
+{host: "localhost", port: 8080}
+```
+
+```bash
+# No arguments needed - file doesn't evaluate to a function
+avon eval data.av
+# Output: {host: "localhost", port: 8080}
+
+# Arguments are ignored if result is not a function
+avon eval data.av -x 5
+# Still outputs: {host: "localhost", port: 8080}
+# (The -x argument is ignored)
+```
+
+#### Summary
+
+- **Both `eval` and `deploy` accept arguments** - use `eval` to preview, `deploy` to write files
+- **When a file evaluates to a function**, arguments are automatically applied
+- **Named arguments** use `-param value` syntax
+- **Positional arguments** are passed in order without names
+- **Default values** are used when arguments aren't provided
+- **All arguments are strings** - convert them in your code with `to_int`, `to_bool`, etc.
+- **Arguments work the same** for both `eval` and `deploy` - the only difference is what happens with the final result
 
 ### Interactive REPL
 
