@@ -1,0 +1,162 @@
+# Comprehensive Test Suite for Avon
+# This file tests expressions in almost every way to ensure correctness
+# Add new test cases here to prevent regressions
+
+# ============================================================================
+# LITERALS
+# ============================================================================
+
+let test_numbers = [0, 42, -42, 0.0, 3.14, -3.14, 1000000, -1000000] in
+let test_strings = ["", "hello", "world", "with\nnewline", "with\ttab", "with\\backslash", "with\"quote"] in
+let test_bools = [true, false] in
+let test_lists = [[], [1], [1, 2, 3], ["a", "b", "c"], [[1, 2], [3, 4]], [1, "mixed", true, 3.14], []] in
+let test_dicts = [{}, {a: 1}, {a: 1, b: 2}, {nested: {x: 1, y: 2}}, {mixed: [1, 2, 3], str: "hello"}] in
+
+# ============================================================================
+# RANGE SYNTAX
+# ============================================================================
+
+let test_ranges = [[1 .. 5], [0 .. 0], [10 .. 15], [0, 2 .. 10], [1, 3 .. 10], [10, -1 .. 0], [5, -2 .. -1]] in
+
+# ============================================================================
+# ARITHMETIC OPERATIONS
+# ============================================================================
+
+let test_arithmetic = [1 + 2, 10 - 5, 3 * 4, 8 / 2, 1 + 2 + 3, 10 - 5 - 2, 2 * 3 * 4, 16 / 2 / 2, -5 + 10, 3.14 + 2.86, 100 * 0.5] in
+
+# ============================================================================
+# COMPARISON OPERATIONS
+# ============================================================================
+
+let test_comparisons = [1 == 1, 1 != 2, 5 > 3, 3 < 5, 5 >= 5, 3 <= 5, "a" == "a", "a" != "b", true == true, false != true] in
+
+# ============================================================================
+# LOGICAL OPERATIONS
+# ============================================================================
+
+let test_logical = [(true && true), (true && false), (false && true), (false && false), (true || true), (true || false), (false || true), (false || false), ((true && false) || true), ((false || true) && false)] in
+
+# ============================================================================
+# STRING OPERATIONS
+# ============================================================================
+
+let test_string_ops = ["hello" + " " + "world", length "hello", upper "hello", lower "HELLO", concat "a" "b", replace "hello" "l" "L", join ["a", "b", "c"] ", "] in
+
+# ============================================================================
+# LIST OPERATIONS
+# ============================================================================
+
+let test_list_ops = [[1, 2] + [3, 4], length [1, 2, 3], head [1, 2, 3], tail [1, 2, 3], take 2 [1, 2, 3, 4], drop 2 [1, 2, 3, 4], reverse [1, 2, 3], zip [1, 2] ["a", "b"], partition (\x x > 2) [1, 2, 3, 4, 5]] in
+
+# ============================================================================
+# MAP, FILTER, FOLD
+# ============================================================================
+
+let test_hof = [map (\x x * 2) [1, 2, 3], filter (\x x > 2) [1, 2, 3, 4, 5], fold (\acc \x acc + x) 0 [1, 2, 3], map (\x "item-" + (to_string x)) [1, 2, 3], filter (\x (length x) > 3) ["a", "hello", "hi", "world"]] in
+
+# ============================================================================
+# CONDITIONALS
+# ============================================================================
+
+let test_conditionals = [(if true then "yes" else "no"), (if false then "yes" else "no"), (if 5 > 3 then 10 else 20), (if "a" == "b" then 1 else 2), (if true then (if false then 1 else 2) else 3)] in
+
+# ============================================================================
+# LET BINDINGS
+# ============================================================================
+
+let test_lets = let x = 10 in let y = 20 in let z = x + y in [x, y, z] in
+let test_nested_lets = let outer = 100 in let inner = let temp = 50 in temp * 2 in [outer, inner] in
+
+# ============================================================================
+# FUNCTIONS
+# ============================================================================
+
+let test_functions = let add = \x \y x + y in let double = \x x * 2 in let apply = \f \x f x in [add 5 3, double 10, apply double 5, (\x x + 1) 10] in
+
+# ============================================================================
+# RECURSIVE FUNCTIONS
+# ============================================================================
+
+# NOTE: fibonacci(7) would cause exponential recursion (2^7 calls)
+# Using fibonacci(5) instead for reasonable evaluation time
+let test_recursion = let factorial = \n if n <= 1 then 1 else n * (factorial (n - 1)) in let fibonacci = \n if n <= 1 then n else (fibonacci (n - 1)) + (fibonacci (n - 2)) in [factorial 5, factorial 0, fibonacci 5] in
+
+# ============================================================================
+# DEFAULT PARAMETERS
+# ============================================================================
+
+let test_defaults = let greet = \name ? "world" "Hello, " + name in [greet "Alice", typeof greet] in
+
+# ============================================================================
+# DICTIONARY OPERATIONS
+# ============================================================================
+
+let test_dict_ops = let d = {a: 1, b: 2, c: 3} in [d.a, get d "b", keys d, values d, has_key d "a", has_key d "missing", length (keys d)] in
+
+# ============================================================================
+# TEMPLATES
+# ============================================================================
+
+let test_templates = [{"simple"}, {"with {42} interpolation"}, {"multi\nline"}, {"nested {if true then \"yes\" else \"no\"} conditional"}] in
+
+# ============================================================================
+# PATH VALUES
+# ============================================================================
+
+let test_paths = [@/absolute/path, @relative/path, @path/with/{let x = "var" in x}/interpolation] in
+
+# ============================================================================
+# PIPE OPERATOR
+# ============================================================================
+
+let test_pipes = [("hello" -> upper), ("world" -> length), ([1, 2, 3] -> length), (42 -> to_string), ("382" -> to_int -> \x [x])] in
+
+# ============================================================================
+# TYPE CHECKING
+# ============================================================================
+
+let test_types = [is_string "hello", is_number 42, is_number 3.14, is_dict {a: 1}, typeof "hello", typeof 42, typeof [1, 2, 3], typeof {a: 1}] in
+
+# ============================================================================
+# COMPLEX NESTED EXPRESSIONS
+# ============================================================================
+
+let test_complex = let data = [1, 2, 3, 4, 5] in let process = \xs map (\x if x > 2 then x * 2 else x) (filter (\x x > 1) xs) in let result = process data in [result, length result, fold (\acc \x acc + x) 0 result] in
+
+# ============================================================================
+# EDGE CASES
+# ============================================================================
+
+let test_edges = [head [], tail [], take 0 [1, 2, 3], drop 0 [1, 2, 3], drop 10 [1, 2, 3], take 10 [1, 2, 3], reverse [], zip [] [], [1 .. 1], [10, -1 .. 10]] in
+
+# ============================================================================
+# COMBINE ALL TESTS INTO FINAL RESULT
+# ============================================================================
+
+{
+  numbers: test_numbers,
+  strings: test_strings,
+  bools: test_bools,
+  lists: test_lists,
+  dicts: test_dicts,
+  ranges: test_ranges,
+  arithmetic: test_arithmetic,
+  comparisons: test_comparisons,
+  logical: test_logical,
+  string_ops: test_string_ops,
+  list_ops: test_list_ops,
+  hof: test_hof,
+  conditionals: test_conditionals,
+  lets: test_lets,
+  nested_lets: test_nested_lets,
+  functions: test_functions,
+  recursion: test_recursion,
+  defaults: test_defaults,
+  dict_ops: test_dict_ops,
+  templates: test_templates,
+  paths: test_paths,
+  pipes: test_pipes,
+  types: test_types,
+  complex: test_complex,
+  edges: test_edges
+}
