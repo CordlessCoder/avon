@@ -1,0 +1,23 @@
+# Example: Backup Demonstration
+#
+# Run this multiple times to see how --backup preserves old versions.
+#
+# Usage:
+#   1. First run:
+#      avon deploy examples/backup_demo.av --root ./out
+#
+#   2. Modify this file (e.g., change "Version 1" to "Version 2")
+#
+#   3. Second run (with backup):
+#      avon deploy examples/backup_demo.av --root ./out --backup
+#
+#   4. Result:
+#      ./out/demo.txt      -> contains "Version 2"
+#      ./out/demo.txt.bak  -> contains "Version 1"
+
+@/demo.txt {"
+This is a demo file.
+Current content: Version 1
+Timestamp: {os}
+"}
+

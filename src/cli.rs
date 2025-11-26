@@ -179,6 +179,8 @@ fn print_builtin_docs() {
     println!("System:");
     println!("-------");
     println!("  os           :: String  (returns \"linux\", \"macos\", or \"windows\")");
+    println!("  env_var      :: String -> String  (reads env var, fails if missing)");
+    println!("  env_var_or   :: String -> String -> String  (reads env var with default)");
     println!();
 
     println!("Notes:");
@@ -196,26 +198,66 @@ fn print_help() {
 Usage: avon <command> [args]
 
 Commands:
-  eval <file>        Evaluate a file and print the result
+  eval <file>        Evaluate a file and print the result (no files written)
   deploy <file>      Deploy generated templates to disk
   run <code>         Evaluate code string directly
   doc                Show builtin function reference
   version            Show version information
+  help               Show this help message
 
 Options:
   --root <dir>       Prepend <dir> to generated file paths (deploy only)
-  --force            Overwrite existing files (deploy only)
+                     Recommended: Always use --root to avoid writing to system directories
+  
+  --force            Overwrite existing files without warning (deploy only)
+                     Use with caution: This will overwrite files without backup
+  
   --append           Append to existing files instead of overwriting (deploy only)
+                     Useful for logs or accumulating data
+  
   --if-not-exists    Only write file if it doesn't exist (deploy only)
+                     Useful for initialization files
+  
+  --backup           Create backup (.bak) of existing files before overwriting (deploy only)
+                     Safest option: Preserves old files while allowing updates
+  
   --git <url>        Use git raw URL as source file (for eval/deploy)
+                     Format: user/repo/path/to/file.av
+  
   --debug            Enable detailed debug output (lexer/parser/eval)
+                     Useful for troubleshooting syntax or evaluation issues
+  
   -param value       Pass named arguments to main function
+                     Example: -env prod -version 1.0
+
+Safety:
+  By default, Avon will NOT overwrite existing files. It skips them and warns you.
+  Use --force, --append, or --backup to explicitly allow file modifications.
+  Always use --root to confine deployment to a specific directory.
 
 Examples:
+  # Evaluate a file (see what it produces)
   avon eval config.av
+  
+  # Deploy to a specific directory
   avon deploy config.av --root ./output
+  
+  # Deploy with backup (safest)
+  avon deploy config.av --root ./output --backup
+  
+  # Deploy with arguments
+  avon deploy config.av --root ./output -env prod -version 1.0
+  
+  # Evaluate code directly
   avon run 'map (\x x*2) [1,2,3]'
+  
+  # Fetch and deploy from GitHub
   avon deploy --git user/repo/file.av --root ./out
+  
+  # Debug a problematic file
+  avon eval config.av --debug
+
+For more information, see: tutorial/TUTORIAL.md
 "#;
     println!("{}", help);
 }
@@ -226,6 +268,7 @@ struct CliOptions {
     force: bool,
     append: bool,
     if_not_exists: bool,
+    backup: bool,
     debug: bool,
     git_url: Option<String>,
     named_args: HashMap<String, String>,
@@ -241,6 +284,7 @@ impl CliOptions {
             force: false,
             append: false,
             if_not_exists: false,
+            backup: false,
             debug: false,
             git_url: None,
             named_args: HashMap::new(),
@@ -283,6 +327,10 @@ fn parse_args(args: &[String], require_file: bool) -> Result<CliOptions, String>
                 opts.if_not_exists = true;
                 i += 1;
             }
+            "--backup" => {
+                opts.backup = true;
+                i += 1;
+            }
             "--debug" => {
                 opts.debug = true;
                 i += 1;
@@ -292,7 +340,7 @@ fn parse_args(args: &[String], require_file: bool) -> Result<CliOptions, String>
                     opts.git_url = Some(args[i + 1].clone());
                     i += 2;
                 } else {
-                    return Err("--git requires a repo/file argument".to_string());
+                    return Err("--git requires a URL argument (format: user/repo/path/to/file.av)".to_string());
                 }
             }
             s if s.starts_with("-") => {
@@ -301,7 +349,7 @@ fn parse_args(args: &[String], require_file: bool) -> Result<CliOptions, String>
                     opts.named_args.insert(key, args[i + 1].clone());
                     i += 2;
                 } else {
-                    return Err(format!("named argument {} missing value", key));
+                    return Err(format!("Named argument '{}' requires a value. Use: -{} <value>", key, key));
                 }
             }
             s => {
@@ -318,7 +366,7 @@ fn parse_args(args: &[String], require_file: bool) -> Result<CliOptions, String>
     }
 
     if require_file && opts.file.is_none() && opts.git_url.is_none() {
-        return Err("missing file argument (or --git)".to_string());
+        return Err("Missing required file argument. Use: avon <command> <file> [options]".to_string());
     }
 
     Ok(opts)
@@ -338,6 +386,9 @@ pub fn run_cli(args: Vec<String>) -> i32 {
             Ok(opts) => execute_eval(opts),
             Err(e) => {
                 eprintln!("Error: {}", e);
+                eprintln!("  Usage: avon eval <file> [options]");
+                eprintln!("  Example: avon eval config.av");
+                eprintln!("  Use 'avon help' for more information");
                 1
             }
         },
@@ -345,12 +396,18 @@ pub fn run_cli(args: Vec<String>) -> i32 {
             Ok(opts) => execute_deploy(opts),
             Err(e) => {
                 eprintln!("Error: {}", e);
+                eprintln!("  Usage: avon deploy <file> [options]");
+                eprintln!("  Example: avon deploy config.av --root ./output");
+                eprintln!("  Use 'avon help' for more information");
                 1
             }
         },
         "run" => {
             if rest.is_empty() {
-                eprintln!("Error: run requires code string argument");
+                eprintln!("Error: 'run' command requires a code string argument");
+                eprintln!("  Usage: avon run '<code>'");
+                eprintln!("  Example: avon run 'map (\\x x*2) [1,2,3]'");
+                eprintln!("  Note: Use quotes around the code string");
                 return 1;
             }
             let code = rest[0].clone();
@@ -453,18 +510,32 @@ pub fn run_cli(args: Vec<String>) -> i32 {
 fn get_source(opts: &CliOptions) -> Result<(String, String), i32> {
     if let Some(url) = &opts.git_url {
         fetch_git_raw(url).map(|s| (s, url.clone())).map_err(|e| {
-            eprintln!("Failed to fetch git url: {}", e.message);
+            eprintln!("Error: Failed to fetch from git URL: {}", e.message);
+            eprintln!("  URL: {}", url);
+            eprintln!("  Tip: Make sure the URL format is: user/repo/path/to/file.av");
+            eprintln!("  Example: avon deploy --git pyrotek45/avon/examples/config.av");
             1
         })
     } else if let Some(file) = &opts.file {
         std::fs::read_to_string(file)
             .map(|s| (s, file.clone()))
             .map_err(|e| {
-                eprintln!("Failed to read file {}: {}", file, e);
+                eprintln!("Error: Failed to read file: {}", file);
+                eprintln!("  Reason: {}", e);
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    eprintln!("  Tip: Check that the file exists and the path is correct");
+                    eprintln!("  Tip: Use 'avon eval {}' to test if the file is valid", file);
+                } else if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    eprintln!("  Tip: Check file permissions");
+                }
                 1
             })
     } else {
-        eprintln!("No source file provided");
+        eprintln!("Error: No source file provided");
+        eprintln!("  Usage: avon <command> <file> [options]");
+        eprintln!("  Example: avon eval config.av");
+        eprintln!("  Example: avon deploy config.av --root ./output");
+        eprintln!("  Use 'avon help' for more information");
         Err(1)
     }
 }
@@ -523,7 +594,16 @@ fn process_source(
                                          Err(e) => { eprintln!("{}", e.pretty_with_file(&source, Some(&source_name))); return 1; }
                                      }
                                  } else {
-                                     eprintln!("missing argument for {}", ident);
+                                     eprintln!("Error: Missing required argument: {}", ident);
+                                     eprintln!("  The program expects an argument named '{}'", ident);
+                                     if !opts.named_args.is_empty() || !opts.pos_args.is_empty() {
+                                         eprintln!("  Provided arguments: {:?}", opts.named_args.keys().collect::<Vec<_>>());
+                                         if !opts.pos_args.is_empty() {
+                                             eprintln!("  Positional arguments: {:?}", opts.pos_args);
+                                         }
+                                     }
+                                     eprintln!("  Usage: avon deploy {} -{} <value>", source_name, ident);
+                                     eprintln!("  Example: avon deploy {} -{} myvalue", source_name, ident);
                                      return 1;
                                  }
                              },
@@ -545,63 +625,154 @@ fn process_source(
                     if deploy_mode {
                          match collect_file_templates(&v, &source) {
                              Ok(files) => {
-                                 for (path, content) in files {
-                                     let write_path = if let Some(root) = &opts.root {
-                                         let rel = path.trim_start_matches('/');
-                                         std::path::Path::new(root).join(rel)
-                                     } else {
-                                         std::path::Path::new(&path).to_path_buf()
-                                     };
-                                     
-                                     let exists = write_path.exists();
-                                     
-                                     if opts.if_not_exists && exists {
-                                         println!("Skipped {} (exists)", write_path.display());
-                                         continue;
-                                     }
-                                     
-                                     if exists && !opts.force && !opts.append {
-                                         eprintln!("WARNING: File {} exists. Use --force to overwrite or --append to append.", write_path.display());
-                                         continue;
-                                     }
-                                     
+                                 // SAFETY: Collect all files first, validate all paths, then write all files
+                                 // If any error occurs during collection or validation, no files are written
+                                 
+                                // Step 1: Prepare all file operations (validate paths, create dirs)
+                                let mut prepared_files: Vec<(std::path::PathBuf, String, bool, bool)> = Vec::new();
+                                for (path, content) in &files {
+                                    let write_path = if let Some(root) = &opts.root {
+                                        let rel = path.trim_start_matches('/');
+                                        std::path::Path::new(root).join(rel)
+                                    } else {
+                                        std::path::Path::new(&path).to_path_buf()
+                                    };
+                                    
+                                    let exists = write_path.exists();
+                                    let mut should_backup = false;
+                                    
+                                    if exists {
+                                        if opts.if_not_exists {
+                                            println!("Skipped {} (exists)", write_path.display());
+                                            continue;
+                                        }
+                                        
+                                        if opts.backup {
+                                            should_backup = true;
+                                        } else if !opts.force && !opts.append {
+                                            eprintln!("WARNING: File {} exists. Use --force to overwrite, --append to append, or --backup to backup and overwrite.", write_path.display());
+                                            continue;
+                                        }
+                                    }
+                                    
+                                     // Create parent directories before writing
                                      if let Some(parent) = write_path.parent() {
-                                         std::fs::create_dir_all(parent).ok();
-                                     }
-                                     
-                                     if opts.append && exists {
-                                          use std::io::Write;
-                                          match std::fs::OpenOptions::new().append(true).open(&write_path) {
-                                              Ok(mut f) => {
-                                                  if let Err(e) = f.write_all(content.as_bytes()) {
-                                                      eprintln!("Failed to append to {}: {}", write_path.display(), e);
-                                                      return 1;
-                                                  }
-                                                  println!("Appended to {}", write_path.display());
-                                              },
-                                              Err(e) => {
-                                                  eprintln!("Failed to open {} for append: {}", write_path.display(), e);
-                                                  return 1;
-                                              }
-                                          }
-                                     } else {
-                                         if let Err(e) = std::fs::write(&write_path, content) {
-                                             eprintln!("Failed to write {}: {}", write_path.display(), e);
+                                         if let Err(e) = std::fs::create_dir_all(parent) {
+                                             eprintln!("Error: Failed to create directory: {}", parent.display());
+                                             eprintln!("  Reason: {}", e);
+                                             if e.kind() == std::io::ErrorKind::PermissionDenied {
+                                                 eprintln!("  Tip: Check directory permissions");
+                                                 eprintln!("  Tip: Try using a different --root directory");
+                                             } else if e.kind() == std::io::ErrorKind::NotFound {
+                                                 eprintln!("  Tip: Check that the parent path exists");
+                                             }
+                                             eprintln!("Deployment aborted. No files were written.");
                                              return 1;
                                          }
-                                         if exists {
-                                             println!("Overwrote {}", write_path.display());
-                                         } else {
-                                             println!("Wrote {}", write_path.display());
-                                         }
                                      }
-                                 }
+                                    
+                                    prepared_files.push((write_path, content.clone(), exists, should_backup));
+                                }
+                                
+                                // Step 2: Write all files (if any write fails, deployment is aborted)
+                                let mut written_files = Vec::new();
+                                for (write_path, content, exists, should_backup) in prepared_files {
+                                    // Perform backup if needed
+                                    if should_backup {
+                                        let mut backup_name = write_path.file_name().unwrap().to_os_string();
+                                        backup_name.push(".bak");
+                                        let backup_path = write_path.with_file_name(backup_name);
+                                        
+                                        if let Err(e) = std::fs::copy(&write_path, &backup_path) {
+                                            eprintln!("Error: Failed to create backup: {}", backup_path.display());
+                                            eprintln!("  Reason: {}", e);
+                                            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                                                eprintln!("  Tip: Check write permissions for the backup location");
+                                            }
+                                            if !written_files.is_empty() {
+                                                eprintln!("  Note: {} file(s) were written before the error occurred.", written_files.len());
+                                            }
+                                            eprintln!("Deployment aborted.");
+                                            return 1;
+                                        }
+                                        println!("Backed up to {}", backup_path.display());
+                                    }
+
+                                    if opts.append && exists {
+                                        use std::io::Write;
+                                        match std::fs::OpenOptions::new().append(true).open(&write_path) {
+                                            Ok(mut f) => {
+                                                if let Err(e) = f.write_all(content.as_bytes()) {
+                                                    eprintln!("Error: Failed to append to file: {}", write_path.display());
+                                                    eprintln!("  Reason: {}", e);
+                                                    if e.kind() == std::io::ErrorKind::PermissionDenied {
+                                                        eprintln!("  Tip: Check file permissions");
+                                                    } else if e.kind() == std::io::ErrorKind::OutOfMemory {
+                                                        eprintln!("  Tip: File may be too large for available memory");
+                                                    }
+                                                    if !written_files.is_empty() {
+                                                        eprintln!("  Note: {} file(s) were written before the error occurred.", written_files.len());
+                                                    }
+                                                    eprintln!("Deployment aborted.");
+                                                    return 1;
+                                                }
+                                                println!("Appended to {}", write_path.display());
+                                                written_files.push(write_path.clone());
+                                            },
+                                            Err(e) => {
+                                                eprintln!("Error: Failed to open file for append: {}", write_path.display());
+                                                eprintln!("  Reason: {}", e);
+                                                if e.kind() == std::io::ErrorKind::PermissionDenied {
+                                                    eprintln!("  Tip: Check file permissions");
+                                                    eprintln!("  Tip: Try using --backup instead of --append");
+                                                }
+                                                if !written_files.is_empty() {
+                                                    eprintln!("  Note: {} file(s) were written before the error occurred.", written_files.len());
+                                                }
+                                                eprintln!("Deployment aborted.");
+                                                return 1;
+                                            }
+                                        }
+                                    } else {
+                                        if let Err(e) = std::fs::write(&write_path, content) {
+                                            eprintln!("Error: Failed to write file: {}", write_path.display());
+                                            eprintln!("  Reason: {}", e);
+                                            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                                                eprintln!("  Tip: Check file permissions");
+                                                eprintln!("  Tip: Try using a different --root directory");
+                                            } else if e.kind() == std::io::ErrorKind::NotFound {
+                                                eprintln!("  Tip: Check that the parent directory exists");
+                                            } else if e.kind() == std::io::ErrorKind::OutOfMemory {
+                                                eprintln!("  Tip: File may be too large for available memory");
+                                            }
+                                            if !written_files.is_empty() {
+                                                eprintln!("  Note: {} file(s) were written before the error occurred.", written_files.len());
+                                            }
+                                            eprintln!("Deployment aborted.");
+                                            return 1;
+                                        }
+                                        if exists {
+                                            println!("Overwrote {}", write_path.display());
+                                        } else {
+                                            println!("Wrote {}", write_path.display());
+                                        }
+                                        written_files.push(write_path);
+                                    }
+                                }
                              },
-                             Err(_) => {
-                                 // If deploy mode but result isn't files, just print string?
-                                 // Or error? Original code printed string if error collecting templates
-                                 // But collecting templates only errors if value is not list/filetemplate
-                                 println!("{}", v.to_string(&source)); 
+                             Err(e) => {
+                                 // In deploy mode, if the result isn't deployable (not FileTemplate or list), error out
+                                 eprintln!("Error: Deployment failed - result is not deployable");
+                                 eprintln!("  The program evaluated successfully, but the result cannot be deployed.");
+                                 eprintln!("  Expected: FileTemplate or list of FileTemplates");
+                                 eprintln!("  Got: {}", v.to_string(&source));
+                                 eprintln!("  Details: {}", e.message);
+                                 eprintln!("");
+                                 eprintln!("  Tip: Make sure your program returns a FileTemplate (using @/path {{...}})");
+                                 eprintln!("  Tip: Or return a list of FileTemplates: [@/file1.txt {{...}}, @/file2.txt {{...}}]");
+                                 eprintln!("  Tip: Use 'avon eval {}' to see what your program evaluates to", source_name);
+                                 eprintln!("  No files were written.");
+                                 return 1;
                              }
                          }
                     } else {

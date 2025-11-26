@@ -5,6 +5,15 @@ use std::collections::HashMap;
 
 pub fn initial_builtins() -> HashMap<String, Value> {
     let mut m = HashMap::new();
+    m.insert(
+        "env_var".to_string(),
+        Value::Builtin("env_var".to_string(), Vec::new()),
+    );
+    m.insert(
+        "env_var_or".to_string(),
+        Value::Builtin("env_var_or".to_string(), Vec::new()),
+    );
+
     // Core operations
     m.insert(
         "concat".to_string(),
@@ -1094,6 +1103,9 @@ pub fn apply_function(func: &Value, arg: Value, source: &str, line: usize) -> Re
                 "error" => 1,
                 "trace" => 2,
                 "debug" => 1,
+                "os" => 0,
+                "env_var" => 1,
+                "env_var_or" => 2,
                 _ => 1,
             };
 
@@ -2126,15 +2138,15 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str, line: usize) ->
                     Value::List(rows) => {
                         // Existing behavior: list of lists
                         let mut result = Vec::new();
-                        for row in rows {
-                            if let Value::List(cols) = row {
-                                let strings: Vec<String> =
-                                    cols.iter().map(|v| v.to_string(source)).collect();
+                for row in rows {
+                    if let Value::List(cols) = row {
+                        let strings: Vec<String> =
+                            cols.iter().map(|v| v.to_string(source)).collect();
                                 result.push(strings);
-                            } else {
+                    } else {
                                 result.push(vec![row.to_string(source)]);
-                            }
-                        }
+                    }
+                }
                         result
                     }
                     _ => {
@@ -2653,6 +2665,55 @@ pub fn execute_builtin(name: &str, args: &[Value], source: &str, line: usize) ->
         }
 
         // Type introspection
+        "env_var" => {
+            // env_var :: String -> String
+            // Returns the value of an environment variable.
+            // Errors if the variable is not set (fail-safe by default).
+            let name = &args[0];
+            if let Value::String(key) = name {
+                match std::env::var(key) {
+                    Ok(val) => Ok(Value::String(val)),
+                    Err(_) => Err(EvalError::new(
+                        format!("Missing environment variable: {}", key),
+                        None,
+                        None,
+                        0,
+                    )),
+                }
+            } else {
+                Err(EvalError::type_mismatch(
+                    "String",
+                    name.to_string(source),
+                    0,
+                ))
+            }
+        }
+        "env_var_or" => {
+            // env_var_or :: String -> String -> String
+            // Returns the value of an environment variable or a default value if not set.
+            let name = &args[0];
+            let default = &args[1];
+            if let Value::String(key) = name {
+                if let Value::String(def_val) = default {
+                    match std::env::var(key) {
+                        Ok(val) => Ok(Value::String(val)),
+                        Err(_) => Ok(Value::String(def_val.clone())),
+                    }
+                } else {
+                    Err(EvalError::type_mismatch(
+                        "String (default value)",
+                        default.to_string(source),
+                        0,
+                    ))
+                }
+            } else {
+                Err(EvalError::type_mismatch(
+                    "String (variable name)",
+                    name.to_string(source),
+                    0,
+                ))
+            }
+        }
         "typeof" => {
             // typeof :: a -> String
             // Returns the type name of a value

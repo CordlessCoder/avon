@@ -62,6 +62,16 @@ for file in "$EXAMPLES_DIR"/*.av; do
         echo -n "Testing $filename... "
     fi
     
+    # Set env vars for secrets examples
+    if [[ "$filename" == "secrets_test.av" ]]; then
+        export API_KEY="dummy_key"
+    fi
+    if [[ "$filename" == "secure_config.av" ]]; then
+        export DB_HOST="localhost"
+        export DB_PASS="pass"
+        export API_KEY="key"
+    fi
+
     # Run the example and capture output
     if output=$(cargo run --quiet -- eval "$file" 2>&1); then
         if [[ "$SHOW_OUTPUT" == true ]]; then

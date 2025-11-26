@@ -3200,6 +3200,180 @@ mod tests {
     }
 
     #[test]
+    fn test_env_var_existing() {
+        // Test env_var reading a set variable
+        std::env::set_var("AVON_TEST_KEY", "secret_val");
+        let prog = "env_var \"AVON_TEST_KEY\"".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "secret_val");
+        std::env::remove_var("AVON_TEST_KEY");
+    }
+
+    #[test]
+    fn test_env_var_missing() {
+        // Test env_var failing on missing variable
+        let prog = "env_var \"AVON_MISSING_KEY\"".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let result = eval(ast.program, &mut symbols, &prog);
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(err.message.contains("Missing environment variable"));
+    }
+
+    #[test]
+    fn test_env_var_or_existing() {
+        // Test env_var_or using existing variable
+        std::env::set_var("AVON_TEST_KEY_OR", "real_val");
+        let prog = "env_var_or \"AVON_TEST_KEY_OR\" \"default\"".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "real_val");
+        std::env::remove_var("AVON_TEST_KEY_OR");
+    }
+
+    #[test]
+    fn test_env_var_or_missing() {
+        // Test env_var_or using default value
+        let prog = "env_var_or \"AVON_MISSING_KEY_OR\" \"default_val\"".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        assert_eq!(v.to_string(&prog), "default_val");
+    }
+
+    // Atomic Deployment Safety Tests
+    // These tests verify the claims made in the documentation about fail-safe deployment
+
+    #[test]
+    fn test_atomic_deployment_evaluation_failure_no_files() {
+        // Claim: If evaluation fails, no files are written
+        // Test: A program with a type error should not produce any file templates
+        let prog = "let x = \"hello\" in x + 42".to_string(); // Type error: string + number
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let result = eval(ast.program, &mut symbols, &prog);
+        
+        // Evaluation should fail
+        assert!(result.is_err());
+        
+        // Since evaluation failed, we can't even get to collect_file_templates
+        // This verifies that evaluation errors prevent any file collection
+    }
+
+    #[test]
+    fn test_atomic_deployment_non_deployable_result_no_files() {
+        // Claim: If result isn't deployable (not FileTemplate or list), no files are written
+        // Test: A program that evaluates to a string (not deployable) should fail collection
+        let prog = "\"just a string\"".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        
+        // collect_file_templates should fail for non-deployable values
+        let result = collect_file_templates(&v, &prog);
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(err.message.contains("expected filetemplate"));
+    }
+
+    #[test]
+    fn test_atomic_deployment_valid_filetemplates_collect() {
+        // Claim: Valid FileTemplates should be collectible
+        // Test: A program that evaluates to a FileTemplate should be collectible
+        let prog = "@/test.txt {\"content\"}".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        
+        let result = collect_file_templates(&v, &prog);
+        assert!(result.is_ok());
+        let files = result.unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].0, "/test.txt");
+        assert_eq!(files[0].1, "content");
+    }
+
+    #[test]
+    fn test_atomic_deployment_list_of_filetemplates_collect() {
+        // Claim: Lists of FileTemplates should be collectible
+        // Test: A program that evaluates to a list of FileTemplates should be collectible
+        let prog = "[@/a.txt {\"a\"}, @/b.txt {\"b\"}]".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        
+        let result = collect_file_templates(&v, &prog);
+        assert!(result.is_ok());
+        let files = result.unwrap();
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].0, "/a.txt");
+        assert_eq!(files[0].1, "a");
+        assert_eq!(files[1].0, "/b.txt");
+        assert_eq!(files[1].1, "b");
+    }
+
+    #[test]
+    fn test_atomic_deployment_mixed_list_fails() {
+        // Claim: Lists containing non-FileTemplate values should fail collection
+        // Test: A list with a string and FileTemplate should fail
+        let prog = "[\"not a filetemplate\", @/test.txt {\"content\"}]".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        
+        let result = collect_file_templates(&v, &prog);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_atomic_deployment_nested_list_collect() {
+        // Claim: Nested lists of FileTemplates should be flattened and collectible
+        // Test: A nested list structure should work
+        let prog = "[[@/a.txt {\"a\"}], [@/b.txt {\"b\"}]]".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, &prog).expect("eval");
+        
+        let result = collect_file_templates(&v, &prog);
+        assert!(result.is_ok());
+        let files = result.unwrap();
+        assert_eq!(files.len(), 2);
+    }
+
+    #[test]
+    fn test_atomic_deployment_env_var_failure_prevents_deployment() {
+        // Claim: If env_var fails (missing secret), evaluation fails, preventing deployment
+        // Test: A program using env_var with missing variable should fail evaluation
+        let prog = "let secret = env_var \"MISSING_SECRET\" in @/config.yml {\"key: {secret}\"}".to_string();
+        let tokens = tokenize(prog.clone()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let result = eval(ast.program, &mut symbols, &prog);
+        
+        // Evaluation should fail because env_var fails
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(err.message.contains("Missing environment variable"));
+        
+        // Since evaluation failed, no file templates can be collected
+        // This verifies that missing secrets prevent deployment
+    }
+
+    #[test]
     fn test_pipe_operator_with_map() {
         // Test pipe with map operation
         let prog = "[1, 2, 3] -> map (\\x x * 2) -> length".to_string();

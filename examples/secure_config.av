@@ -1,0 +1,31 @@
+# Example: Secure Configuration
+#
+# This demonstrates best practices for handling secrets.
+# None of these values are hardcoded.
+#
+# Usage:
+#   export DB_HOST="db.prod.internal"
+#   export DB_PASS="s3cr3t"
+#   export API_KEY="key_12345"
+#   avon deploy examples/secure_config.av --root ./out --force
+
+let db_host = env_var "DB_HOST" in
+let db_pass = env_var "DB_PASS" in
+let api_key = env_var "API_KEY" in
+let port = env_var_or "PORT" "8080" in
+
+@/config/production.yml {"
+database:
+  host: {db_host}
+  port: 5432
+  username: admin
+  password: {db_pass}
+
+server:
+  port: {port}
+  api_key: {api_key}
+
+logging:
+  level: info
+"}
+

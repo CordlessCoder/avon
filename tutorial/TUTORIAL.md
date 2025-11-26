@@ -21,9 +21,10 @@ But Avon isn't just for complex infrastructure projects. It's a **powerful workf
 7. **[File Templates & Deployment](#file-templates--deployment)** — Multi-file generation
 8. **[Builtin Functions](#builtin-functions)** — String, list, file, and JSON helpers
 9. **[CLI Usage](#cli-usage)** — Running, deploying, and fetching from GitHub
-10. **[Real-World Examples](#real-world-examples)** — Docker, Kubernetes, GitHub Actions, site generation
-11. **[Best Practices](#best-practices)** — Tips for clean, maintainable Avon code
-12. **[Troubleshooting](#troubleshooting)** — Common issues and solutions
+10. **[Safety & Security](#safety--security)** — Secrets, backups, and fail-safe deployment
+11. **[Real-World Examples](#real-world-examples)** — Docker, Kubernetes, GitHub Actions, site generation
+12. **[Best Practices](#best-practices)** — Tips for clean, maintainable Avon code
+13. **[Troubleshooting](#troubleshooting)** — Common issues and solutions
 
 ---
 
@@ -960,7 +961,14 @@ This generates `config-dev.yml` and `config-prod.yml`.
 - `--force` — overwrite existing files without warning
 - `--append` — append to existing files instead of overwriting (useful for logs or accumulating data)
 - `--if-not-exists` — only create file if it doesn't exist (useful for initialization files)
-- **Default behavior**: If a file exists and none of the above flags are used, Avon will skip it and show a clear warning
+- `--backup` — create a backup (`.bak`) of existing files before overwriting (safest overwrite option)
+- `--git <url>` — fetch source from a git raw URL
+
+**Safety Guardrails:**
+- By default, Avon **will not overwrite** existing files. It skips them and warns you.
+- `--force` overrides this safety check.
+- `--backup` allows overwriting but preserves the old file as `filename.bak`.
+- `--root` ensures you don't accidentally write to system directories.
 
 ---
 
@@ -1390,6 +1398,98 @@ let make_file = \name @/{name}.txt {"{name}"} in
 map make_file ["a", "b", "c"]
 # Returns three file templates
 ```
+
+---
+
+## Safety & Security
+
+Avon is built with safety as a priority. It includes robust guardrails to prevent accidental data loss and secure mechanisms for handling sensitive information.
+
+### Secrets Management
+
+**Security Rule #1:** Never hardcode secrets (API keys, passwords, tokens) in your Avon source files.
+
+Use the `env_var` function to read secrets from the environment at runtime.
+
+```avon
+let db_password = env_var "DB_PASSWORD" in
+@/config.yml {"
+  database:
+    host: localhost
+    password: {db_password}
+"}
+```
+
+**How it works:**
+1. Export the variable in your shell: `export DB_PASSWORD="my-secret-pass"`
+2. Run Avon: `avon deploy config.av`
+
+**Fail-Safe Behavior:**
+If the environment variable `DB_PASSWORD` is missing, `env_var` will **fail immediately** with an error. This prevents you from accidentally deploying a configuration with empty or missing secrets.
+
+For optional variables, use `env_var_or`:
+```avon
+let port = env_var_or "PORT" "8080" in
+# Uses "8080" if PORT env var is not set
+```
+
+### Deployment Safety
+
+Avon's deployment process is designed to be atomic-like and fail-safe.
+
+**1. No Partial Writes**
+Avon prepares all file operations before writing anything to disk. It validates:
+- All paths are valid
+- Parent directories can be created
+- No type errors occurred during evaluation
+
+If **any** error occurs during this preparation phase, Avon aborts immediately. **Zero files are written.**
+
+**2. Directory Creation Checks**
+If creating a directory fails (e.g., due to permissions), deployment aborts before any files are written.
+
+**3. Write Error Handling**
+If a file write fails (e.g., disk full, permission denied) during the writing phase, Avon stops immediately and reports exactly what happened.
+
+### Preventing Accidental Overwrites
+
+By default, `avon deploy` is **conservative**. It will **skip** any file that already exists on disk and print a warning.
+
+To change this behavior, you must explicitly opt-in:
+
+| Flag | Behavior | Safety Level |
+|------|----------|--------------|
+| (none) | Skip existing files | **Safest** |
+| `--backup` | Backup existing file to `.bak`, then overwrite | **Safe** |
+| `--force` | Overwrite existing files immediately | **Destructive** |
+| `--append` | Append to existing files | **Additive** |
+
+**The Backup Feature (`--backup`)**
+Use `--backup` when you want to update files but keep a safety copy of the old version.
+
+```bash
+avon deploy config.av --backup
+```
+
+If `config.yml` exists, Avon will:
+1. Copy `config.yml` to `config.yml.bak`
+2. Write the new content to `config.yml`
+
+If the backup fails (e.g., permissions), the deployment aborts and the original file is untouched.
+
+### Best Practices for Safety
+
+1. **Always use `--root`** to confine deployment to a specific directory:
+   ```bash
+   avon deploy site.av --root ./build
+   ```
+   This prevents accidental writes to system directories like `/etc` or `~`.
+
+2. **Use `env_var`** for all credentials.
+
+3. **Prefer `--backup` over `--force`** when updating critical configurations.
+
+4. **Test with `avon eval` first** to inspect the output before deploying.
 
 ---
 
