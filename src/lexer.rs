@@ -324,20 +324,31 @@ pub fn number(next: char, stream: &mut Peekable<Chars<'_>>, line: usize) -> Resu
     };
 
     if peek == &'.' {
-        // Safe: we just checked peek == '.'
-        number.push(stream.next().expect("'.' character exists after peek"));
-        loop {
-            let Some(peek) = stream.peek().clone() else {
-                break;
-            };
-            if peek.is_whitespace() || !peek.is_numeric() {
-                break;
+        // Check if this is actually a float by looking ahead for a digit
+        // after the dot. If no digit follows, it might be a range operator (..)
+        // or member access (.), so leave it for the main lexer
+        let mut temp_stream = stream.clone();
+        temp_stream.next(); // consume the '.'
+        
+        if let Some(next_char) = temp_stream.peek() {
+            if next_char.is_numeric() {
+                // This is definitely a float, consume the dot and parse decimal part
+                // Safe: we just checked peek == '.'
+                number.push(stream.next().expect("'.' character exists after peek"));
+                loop {
+                    let Some(peek) = stream.peek().clone() else {
+                        break;
+                    };
+                    if peek.is_whitespace() || !peek.is_numeric() {
+                        break;
+                    }
+                    // Safe: we just peeked and confirmed there's a character
+                    number.push(stream.next().expect("character exists after peek"));
+                }
+                let number: f64 = number.parse().unwrap_or_default();
+                return Ok(Token::Float(number, line));
             }
-            // Safe: we just peeked and confirmed there's a character
-            number.push(stream.next().expect("character exists after peek"));
         }
-        let number: f64 = number.parse().unwrap_or_default();
-        return Ok(Token::Float(number, line));
     }
 
     let number: i64 = number.parse().unwrap_or_default();

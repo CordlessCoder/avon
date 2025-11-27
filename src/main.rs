@@ -3916,4 +3916,921 @@ mod tests {
             found_str
         );
     }
+
+    // ========================================================================
+    // RANGE SYNTAX TESTS - Regression tests for the lexer fix
+    // Tests range syntax without spaces [1..3] to prevent regressions
+    // ========================================================================
+
+    #[test]
+    fn test_range_syntax_no_spaces_simple() {
+        // Critical regression test: [1..3] without spaces should parse correctly
+        let prog = "[1..3]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => {
+                assert_eq!(items.len(), 3);
+                if let Value::Number(Number::Int(n)) = items[0] {
+                    assert_eq!(n, 1);
+                } else {
+                    panic!("expected int");
+                }
+                if let Value::Number(Number::Int(n)) = items[1] {
+                    assert_eq!(n, 2);
+                } else {
+                    panic!("expected int");
+                }
+                if let Value::Number(Number::Int(n)) = items[2] {
+                    assert_eq!(n, 3);
+                } else {
+                    panic!("expected int");
+                }
+            }
+            other => panic!("expected list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_range_syntax_no_spaces_larger() {
+        // Test larger range without spaces
+        let prog = "[0..5]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => {
+                assert_eq!(items.len(), 6);
+                for (i, item) in items.iter().enumerate() {
+                    if let Value::Number(Number::Int(n)) = item {
+                        assert_eq!(*n, i as i64);
+                    } else {
+                        panic!("expected int at index {}", i);
+                    }
+                }
+            }
+            other => panic!("expected list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_range_syntax_no_spaces_with_step() {
+        // Test range with step, no spaces: [0,2..10]
+        let prog = "[0,2..10]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => {
+                assert_eq!(items.len(), 6);
+                let expected = vec![0, 2, 4, 6, 8, 10];
+                for (i, item) in items.iter().enumerate() {
+                    if let Value::Number(Number::Int(n)) = item {
+                        assert_eq!(*n, expected[i]);
+                    } else {
+                        panic!("expected int at index {}", i);
+                    }
+                }
+            }
+            other => panic!("expected list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_range_syntax_negative_no_spaces() {
+        // Test negative ranges without spaces
+        let prog = "[-5..-1]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => {
+                assert_eq!(items.len(), 5);
+                let expected = vec![-5, -4, -3, -2, -1];
+                for (i, item) in items.iter().enumerate() {
+                    if let Value::Number(Number::Int(n)) = item {
+                        assert_eq!(*n, expected[i]);
+                    } else {
+                        panic!("expected int at index {}", i);
+                    }
+                }
+            }
+            other => panic!("expected list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_range_syntax_with_spaces_backward_compat() {
+        // Ensure spaced version still works (backward compatibility)
+        let prog = "[1 .. 3]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => {
+                assert_eq!(items.len(), 3);
+                if let Value::Number(Number::Int(n)) = items[0] {
+                    assert_eq!(n, 1);
+                } else {
+                    panic!("expected int");
+                }
+                if let Value::Number(Number::Int(n)) = items[1] {
+                    assert_eq!(n, 2);
+                } else {
+                    panic!("expected int");
+                }
+                if let Value::Number(Number::Int(n)) = items[2] {
+                    assert_eq!(n, 3);
+                } else {
+                    panic!("expected int");
+                }
+            }
+            other => panic!("expected list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_range_syntax_step_with_spaces_backward_compat() {
+        // Ensure spaced version with step still works
+        let prog = "[0, 2 .. 10]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => {
+                assert_eq!(items.len(), 6);
+                let expected = vec![0, 2, 4, 6, 8, 10];
+                for (i, item) in items.iter().enumerate() {
+                    if let Value::Number(Number::Int(n)) = item {
+                        assert_eq!(*n, expected[i]);
+                    } else {
+                        panic!("expected int at index {}", i);
+                    }
+                }
+            }
+            other => panic!("expected list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_float_literals_still_work() {
+        // Ensure float parsing wasn't broken by the range syntax fix
+        let prog = "1.5";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Float(n)) => assert_eq!(n, 1.5),
+            other => panic!("expected float, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_float_literals_multiple() {
+        // Test multiple float literals to ensure parsing is robust
+        let test_cases = vec![
+            ("0.5", 0.5),
+            ("3.14", 3.14),
+            ("100.001", 100.001),
+            ("0.0", 0.0),
+        ];
+
+        for (prog, expected) in test_cases {
+            let tokens = tokenize(prog.to_string()).expect("tokenize");
+            let ast = parse(tokens);
+            let mut symbols = initial_builtins();
+            let v = eval(ast.program, &mut symbols, prog).expect("eval");
+            match v {
+                Value::Number(Number::Float(n)) => assert_eq!(n, expected, "failed for {}", prog),
+                other => panic!("expected float for {}, got {:?}", prog, other),
+            }
+        }
+    }
+
+    #[test]
+    fn test_float_arithmetic() {
+        // Test that float arithmetic still works
+        let prog = "1.5 + 2.5";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Float(n)) => assert_eq!(n, 4.0),
+            other => panic!("expected float, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_range_in_map() {
+        // Test range syntax in map operations
+        let prog = "map (\\x x * 2) [1..3]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => {
+                assert_eq!(items.len(), 3);
+                if let Value::Number(Number::Int(n)) = items[0] {
+                    assert_eq!(n, 2);
+                } else {
+                    panic!("expected int");
+                }
+                if let Value::Number(Number::Int(n)) = items[1] {
+                    assert_eq!(n, 4);
+                } else {
+                    panic!("expected int");
+                }
+                if let Value::Number(Number::Int(n)) = items[2] {
+                    assert_eq!(n, 6);
+                } else {
+                    panic!("expected int");
+                }
+            }
+            other => panic!("expected list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_range_in_filter() {
+        // Test range syntax in filter operations
+        let prog = "filter (\\x (x > 2)) [1..5]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => {
+                assert_eq!(items.len(), 3);
+                if let Value::Number(Number::Int(n)) = items[0] {
+                    assert_eq!(n, 3);
+                } else {
+                    panic!("expected int");
+                }
+                if let Value::Number(Number::Int(n)) = items[1] {
+                    assert_eq!(n, 4);
+                } else {
+                    panic!("expected int");
+                }
+                if let Value::Number(Number::Int(n)) = items[2] {
+                    assert_eq!(n, 5);
+                } else {
+                    panic!("expected int");
+                }
+            }
+            other => panic!("expected list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_range_list_concatenation() {
+        // Test concatenating ranges
+        let prog = "[1..3] + [4..6]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => {
+                assert_eq!(items.len(), 6);
+                let expected = vec![1, 2, 3, 4, 5, 6];
+                for (i, item) in items.iter().enumerate() {
+                    if let Value::Number(Number::Int(n)) = item {
+                        assert_eq!(*n, expected[i] as i64);
+                    } else {
+                        panic!("expected int at index {}", i);
+                    }
+                }
+            }
+            other => panic!("expected list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_nested_ranges() {
+        // Test nested range expressions
+        let prog = "[[1..3], [4..6]]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => {
+                assert_eq!(items.len(), 2);
+                // Check first sublist
+                match &items[0] {
+                    Value::List(sub) => {
+                        assert_eq!(sub.len(), 3);
+                        if let Value::Number(Number::Int(n)) = sub[0] {
+                            assert_eq!(n, 1);
+                        } else {
+                            panic!("expected int");
+                        }
+                        if let Value::Number(Number::Int(n)) = sub[1] {
+                            assert_eq!(n, 2);
+                        } else {
+                            panic!("expected int");
+                        }
+                        if let Value::Number(Number::Int(n)) = sub[2] {
+                            assert_eq!(n, 3);
+                        } else {
+                            panic!("expected int");
+                        }
+                    }
+                    other => panic!("expected list, got {:?}", other),
+                }
+                // Check second sublist
+                match &items[1] {
+                    Value::List(sub) => {
+                        assert_eq!(sub.len(), 3);
+                        if let Value::Number(Number::Int(n)) = sub[0] {
+                            assert_eq!(n, 4);
+                        } else {
+                            panic!("expected int");
+                        }
+                        if let Value::Number(Number::Int(n)) = sub[1] {
+                            assert_eq!(n, 5);
+                        } else {
+                            panic!("expected int");
+                        }
+                        if let Value::Number(Number::Int(n)) = sub[2] {
+                            assert_eq!(n, 6);
+                        } else {
+                            panic!("expected int");
+                        }
+                    }
+                    other => panic!("expected list, got {:?}", other),
+                }
+            }
+            other => panic!("expected list, got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // ADDITIONAL EDGE CASE TESTS - 30+ comprehensive edge cases
+    // ========================================================================
+
+    #[test]
+    fn test_edge_case_division_by_one() {
+        let prog = "100 / 1";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 100),
+            other => panic!("expected 100, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_zero_divided_by_number() {
+        let prog = "0 / 5";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 0),
+            other => panic!("expected 0, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_multiplication_by_zero() {
+        let prog = "999 * 0";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 0),
+            other => panic!("expected 0, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_multiplication_by_one() {
+        let prog = "42 * 1";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 42),
+            other => panic!("expected 42, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_negative_zero() {
+        let prog = "-0";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 0),
+            other => panic!("expected 0, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_nested_parentheses() {
+        let prog = "(((42)))";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 42),
+            other => panic!("expected 42, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_comparison_equal_numbers() {
+        let prog = "42 == 42";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b),
+            other => panic!("expected true, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_comparison_not_equal_numbers() {
+        let prog = "42 != 43";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b),
+            other => panic!("expected true, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_empty_string_is_empty() {
+        let prog = "is_empty \"\"";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b),
+            other => panic!("expected true, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_nonempty_string_not_empty() {
+        let prog = "is_empty \"x\"";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(!b),
+            other => panic!("expected false, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_empty_list_length() {
+        let prog = "length []";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 0),
+            other => panic!("expected 0, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_single_element_list_length() {
+        let prog = "length [42]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 1),
+            other => panic!("expected 1, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_map_over_empty_list() {
+        let prog = "map (\\x x * 2) []";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => assert_eq!(items.len(), 0),
+            other => panic!("expected empty list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_filter_empty_result() {
+        let prog = "filter (\\x (x > 100)) [1, 2, 3]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => assert_eq!(items.len(), 0),
+            other => panic!("expected empty list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_filter_all_match() {
+        let prog = "filter (\\x (x > 0)) [1, 2, 3]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => assert_eq!(items.len(), 3),
+            other => panic!("expected 3-element list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_fold_on_empty_list() {
+        let prog = "fold (\\acc \\x acc + x) 100 []";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 100),
+            other => panic!("expected 100, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_fold_multiplication_starting_zero() {
+        let prog = "fold (\\acc \\x acc * x) 0 [1, 2, 3]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 0),
+            other => panic!("expected 0, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_string_repeat_zero() {
+        let prog = "repeat \"x\" 0";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::String(s) => assert_eq!(s, ""),
+            other => panic!("expected empty string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_string_repeat_one() {
+        let prog = "repeat \"hello\" 1";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::String(s) => assert_eq!(s, "hello"),
+            other => panic!("expected 'hello', got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_nested_list_access_empty() {
+        let prog = "head []";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        // head of empty list returns None
+        match v {
+            Value::None => {},
+            other => panic!("expected None, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_tail_single_element() {
+        let prog = "tail [42]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => assert_eq!(items.len(), 0),
+            other => panic!("expected empty list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_take_zero_elements() {
+        let prog = "take 0 [1, 2, 3]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => assert_eq!(items.len(), 0),
+            other => panic!("expected empty list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_take_more_than_list_length() {
+        let prog = "take 10 [1, 2, 3]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => assert_eq!(items.len(), 3),
+            other => panic!("expected 3-element list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_drop_zero_elements() {
+        let prog = "drop 0 [1, 2, 3]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => assert_eq!(items.len(), 3),
+            other => panic!("expected 3-element list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_drop_all_elements() {
+        let prog = "drop 3 [1, 2, 3]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => assert_eq!(items.len(), 0),
+            other => panic!("expected empty list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_reverse_empty_list() {
+        let prog = "reverse []";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => assert_eq!(items.len(), 0),
+            other => panic!("expected empty list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_reverse_single_element() {
+        let prog = "reverse [42]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => {
+                assert_eq!(items.len(), 1);
+                if let Value::Number(Number::Int(n)) = items[0] {
+                    assert_eq!(n, 42);
+                } else {
+                    panic!("expected int");
+                }
+            }
+            other => panic!("expected 1-element list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_string_contains_empty() {
+        let prog = "contains \"hello\" \"\"";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b), // empty string is in every string
+            other => panic!("expected true, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_string_starts_with_empty() {
+        let prog = "starts_with \"hello\" \"\"";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b), // every string starts with empty string
+            other => panic!("expected true, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_string_ends_with_empty() {
+        let prog = "ends_with \"world\" \"\"";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b), // every string ends with empty string
+            other => panic!("expected true, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_multiple_let_bindings() {
+        let prog = "let x = 1 in let y = 2 in let z = 3 in x + y + z";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 6),
+            other => panic!("expected 6, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_let_binding_in_expression() {
+        let prog = "(let x = 10 in x) + 5";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 15),
+            other => panic!("expected 15, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_lambda_immediate_call() {
+        let prog = "(\\x x + 1) 5";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 6),
+            other => panic!("expected 6, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_lambda_curried_call() {
+        let prog = "(\\x \\y x + y) 5 10";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 15),
+            other => panic!("expected 15, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_list_zip_empty_lists() {
+        let prog = "zip [] []";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::List(items) => assert_eq!(items.len(), 0),
+            other => panic!("expected empty list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_list_zip_unequal_lengths() {
+        let prog = "zip [1, 2] [\"a\"]";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        // zip should stop at shortest list
+        match v {
+            Value::List(items) => assert_eq!(items.len(), 1),
+            other => panic!("expected 1-element list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_modulo_operator() {
+        let prog = "10 % 3";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 1),
+            other => panic!("expected 1, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_comparison_chain_inequality() {
+        let prog = "5 > 3 && 3 > 1";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Bool(b) => assert!(b),
+            other => panic!("expected true, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_large_number_arithmetic() {
+        let prog = "1000000 + 2000000";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, 3000000),
+            other => panic!("expected 3000000, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_negative_number_arithmetic() {
+        let prog = "-10 + 5";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::Number(Number::Int(n)) => assert_eq!(n, -5),
+            other => panic!("expected -5, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_string_join_empty_list() {
+        let prog = "join [] \",\"";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::String(s) => assert_eq!(s, ""),
+            other => panic!("expected empty string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_edge_case_string_join_single_element() {
+        let prog = "join [\"hello\"] \",\"";
+        let tokens = tokenize(prog.to_string()).expect("tokenize");
+        let ast = parse(tokens);
+        let mut symbols = initial_builtins();
+        let v = eval(ast.program, &mut symbols, prog).expect("eval");
+        match v {
+            Value::String(s) => assert_eq!(s, "hello"),
+            other => panic!("expected 'hello', got {:?}", other),
+        }
+    }
 }
