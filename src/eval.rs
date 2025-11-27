@@ -949,7 +949,7 @@ pub fn eval(
                 ident,
                 default: default_val,
                 expr,
-                env: std::sync::Arc::new(symbols.clone()), // Arc wraps a snapshot of the current environment
+                env: std::rc::Rc::new(symbols.clone()), // Rc wraps a snapshot of the current environment
             })
         }
         Expr::Application { lhs, rhs, line } => {
