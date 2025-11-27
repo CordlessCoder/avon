@@ -3186,7 +3186,7 @@ pub fn fetch_git_raw(spec: &str) -> Result<String, EvalError> {
         .call()
         .map_err(|e| EvalError::new(format!("failed to fetch {}: {}", url, e), None, None, 0))?;
     let status = resp.status();
-    if status >= 400 {
+    if !status.is_success() {
         return Err(EvalError::new(
             format!("failed to fetch {}: status {}", url, status),
             None,
@@ -3195,7 +3195,8 @@ pub fn fetch_git_raw(spec: &str) -> Result<String, EvalError> {
         ));
     }
     let text = resp
-        .into_string()
+        .into_body()
+        .read_to_string()
         .map_err(|e| EvalError::new(format!("failed to read response: {}", e), None, None, 0))?;
     Ok(text)
 }

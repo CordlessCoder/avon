@@ -12,5 +12,5 @@ categories = ["development-tools"]
 
 [dependencies]
 serde_json = "1.0"
-ureq = "2.7"
+ureq = "3.1"
 rustyline = "10.1"
